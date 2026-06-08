@@ -59,3 +59,5 @@ ai.azure.com
 # YOUR-RESOURCE.cognitiveservices.azure.com
 # YOUR-STORAGE.blob.core.windows.net
 # ──────────────────────────────────────────────────────────────────────────
+# Info Support LLM gateway (test version)
+llm-test.infosupport.com
