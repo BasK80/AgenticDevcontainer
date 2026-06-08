@@ -1,66 +1,24 @@
 {
   "name": "claude-${localWorkspaceFolderBasename}",
-  "build": {
-    "dockerfile": "Dockerfile",
-    "args": {
-      "USER_UID": "1000",
-      "USER_GID": "1000"
-    }
-  },
-
-  "runArgs": [
-    "--cap-add=NET_ADMIN",
-    "--cap-add=NET_RAW",
-    "-p",
-    "127.0.0.1:8400-8999:8400-8999",
-    "--cpus=4",
-    "--memory=8g",
-    "--pids-limit=512",
-    "--hostname=claude-${localWorkspaceFolderBasename}"
-  ],
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "development",
+  "workspaceFolder": "/workspace",
+  "runServices": ["firewall", "control"],
+  "shutdownAction": "stopCompose",
 
   "remoteUser": "devuser",
   "containerUser": "devuser",
-  "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
 
-  "mounts": [
-    "source=${localWorkspaceFolderBasename}-claude,target=/home/devuser/.claude,type=volume",
-    "source=${localWorkspaceFolderBasename}-claude-json,target=/home/devuser/.claude-json,type=volume",
-    "source=${localWorkspaceFolderBasename}-history,target=/commandhistory,type=volume",
-    "source=${localWorkspaceFolderBasename}-node-modules,target=/workspace/node_modules,type=volume",
-    "source=${localWorkspaceFolderBasename}-npm-cache,target=/home/devuser/.npm,type=volume",
-    "source=${localWorkspaceFolderBasename}-pip-cache,target=/home/devuser/.cache/pip,type=volume",
-    "source=${localWorkspaceFolderBasename}-uv-cache,target=/home/devuser/.cache/uv,type=volume",
-    "source=${localWorkspaceFolderBasename}-cargo-registry,target=/home/devuser/.cargo/registry,type=volume",
-
-    // USERPROFILE = Windows, HOME = macOS/Linux — one will resolve.
-    "source=${localEnv:USERPROFILE}${localEnv:HOME}/.gitconfig,target=/home/devuser/.gitconfig,type=bind,readonly"
-
-    // SSH agent forwarding (macOS/Linux). See README for Windows setup.
-    // "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind"
-  ],
-
-  "containerEnv": {
-    // "SSH_AUTH_SOCK": "/ssh-agent",
-
-    "TZ": "${localEnv:TZ:UTC}",
-
-    // Anthropic direct-API auth. Run `claude setup-token` on the host to populate.
-    "CLAUDE_CODE_OAUTH_TOKEN": "${localEnv:CLAUDE_CODE_OAUTH_TOKEN}"
-
-    // Provider selection (Anthropic direct API vs. Azure AI Foundry) is
-    // controlled at runtime by the `use-anthropic` / `use-foundry` shell
-    // commands defined in .devcontainer/claude-switch.sh. Run `claude-mode`
-    // to see the active provider.
-  },
+  // initializeCommand runs on the host before Compose. It writes the .env
+  // file that docker-compose.yml reads for per-project volume/container
+  // names and host-env passthrough. .env is gitignored via *.env.
+  "initializeCommand": "bash -c 'cd .devcontainer && { echo LOCAL_WORKSPACE_FOLDER_BASENAME=${localWorkspaceFolderBasename}; echo TZ=${localEnv:TZ:-UTC}; echo CLAUDE_CODE_OAUTH_TOKEN=${localEnv:CLAUDE_CODE_OAUTH_TOKEN}; echo HOST_GITCONFIG=${localEnv:USERPROFILE}${localEnv:HOME}/.gitconfig; } > .env'",
 
   // Runs once after first container creation.
-  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "postCreateCommand": "bash .devcontainer/development/post-create.sh",
 
-  // Firewall must re-run on every start — iptables rules don't persist.
-  // Also keep Azure CLI browser login flow configured for Foundry mode.
-  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && if [ \"${CLAUDE_CODE_USE_FOUNDRY:-0}\" = \"1\" ]; then az config set core.login_experience_v2=on >/dev/null 2>&1 || true; fi",
+  // Keep Azure CLI browser login flow configured for Foundry mode on every start.
+  "postStartCommand": "if [ \"${CLAUDE_CODE_USE_FOUNDRY:-0}\" = \"1\" ]; then az config set core.login_experience_v2=on >/dev/null 2>&1 || true; fi",
 
   "customizations": {
     "vscode": {

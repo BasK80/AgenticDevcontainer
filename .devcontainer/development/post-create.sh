@@ -24,7 +24,7 @@ set -euo pipefail
 
 # ── Claude provider switcher ──────────────────────────────────────────────
 # Install `use-foundry` / `use-anthropic` / `claude-mode` shell commands.
-SWITCH_SRC="/workspace/.devcontainer/claude-switch.sh"
+SWITCH_SRC="/workspace/.devcontainer/development/claude-switch.sh"
 ZSHRC="$HOME/.zshrc"
 if [[ -f "$SWITCH_SRC" ]] && ! grep -q "claude-switch.sh" "$ZSHRC" 2>/dev/null; then
     echo "[ -f $SWITCH_SRC ] && source $SWITCH_SRC" >> "$ZSHRC"

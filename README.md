@@ -10,11 +10,15 @@ A generic hardened Dev Container for running Claude Code (and other AI coding ag
 
 ## Security measures
 
-**Default-DENY outbound network.** All outbound traffic is dropped unless it matches an allowlist in `init-firewall.sh`. Allowed destinations cover Anthropic APIs, GitHub, common package registries, and Azure endpoints required for Foundry auth/API access.
+**Default-DENY outbound network via a separate firewall container.** The dev container (`development`) is on a Docker `internal: true` network with **no route to the internet**. The only egress path is a Squid proxy running in a sibling `firewall` container that enforces a domain allowlist (see [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default)). Denied requests return a readable `403`. Tools that ignore `HTTP(S)_PROXY` fail closed (no route out), they don't bypass the firewall.
 
-**Azure browser callback ingress (localhost-only).** To support `az login` browser flow in-container, localhost ports `8400-8999` are published from host to container and explicitly allowed through the container firewall. This is limited to `127.0.0.1` on the host.
+**Out-of-band policy plane.** A third `control` container hosts the `allow`/`deny` commands and the policy volume. It sits on a separate network and is **unreachable from `development`** — an agent inside `development` cannot modify its own allowlist.
 
-**Non-root user.** Container runs as `devuser` (UID 1000). The only sudo privilege granted is running `init-firewall.sh` — nothing else.
+**Domain-based filtering.** The allowlist is hostnames, not snapshotted IPs — resilient to CDN/Azure IP rotation. No periodic re-resolution needed.
+
+**Azure browser callback ingress (localhost-only).** To support `az login` browser flow in-container, localhost ports `8400-8999` are published from host to `development`. The firewall only filters egress, so inbound publishes don't bypass it. Limited to `127.0.0.1` on the host.
+
+**Non-root user, no sudo.** Container runs as `devuser` (UID 1000) with no sudo privileges whatsoever. The previous `init-firewall.sh` sudoers entry is gone — there's no in-container firewall to manage.
 
 **Resource limits.** CPU (4 cores), memory (8 GB), PID (512) caps prevent a runaway agent from affecting the host.
 
@@ -28,71 +32,97 @@ A generic hardened Dev Container for running Claude Code (and other AI coding ag
 
 ## File guide
 
-### `devcontainer.json`
-Orchestration config: mounts, env vars, resource limits, startup hooks. In this repo it also enables Foundry env vars and publishes localhost callback ports (`127.0.0.1:8400-8999:8400-8999`) for `az login` browser auth.
+### `.devcontainer/devcontainer.json`
+VS Code dev-container orchestration. Points at `docker-compose.yml`, selects `development` as the attach target, declares the post-create hook, and runs an `initializeCommand` on the host that writes `.devcontainer/.env` (per-project naming + host env passthrough).
 
-### `Dockerfile`
-Image recipe. Installs dev tools, the non-root user, the restricted sudoers entry, and Claude Code. Also installs Azure CLI and GitHub CLI (comment out either if unused).
+### `.devcontainer/docker-compose.yml`
+Defines the three services and two networks:
+- `development` — the container VS Code attaches to. Internal-only network. All persistent state on per-project named volumes (`${LOCAL_WORKSPACE_FOLDER_BASENAME}-*`). Publishes `127.0.0.1:8400-8999` for `az login`. CPU/memory/PID limits set here.
+- `firewall` — Squid on `internal` + `egress`. The only path to the internet.
+- `control` — hosts `allow`/`deny`; on `egress` only, not reachable from `development`.
 
-### `init-firewall.sh`
-Runs at every container start. Flushes iptables, sets default-DROP, resolves allowlisted FQDNs to IPs, and opens only ports 80/443 to those IPs. It also allows inbound TCP `8400-8999` for Azure CLI localhost callback handling.
+### `.devcontainer/development/Dockerfile`
+Image for the dev container. Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
 
-### `post-create.sh`
-Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). In this repo it writes `~/.claude/settings.json` for Foundry routing and enables Azure CLI browser login mode when Foundry is enabled.
+### `.devcontainer/development/post-create.sh`
+Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `claude-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
+
+### `.devcontainer/development/claude-switch.sh`
+Defines `use-foundry` / `use-anthropic` / `claude-mode` shell commands for switching the Claude provider in-place.
+
+### `.devcontainer/firewall/`
+Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s and after `allow`/`deny`), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`).
+
+### `.devcontainer/control/`
+`allow.sh` and `deny.sh` — modify the permanent or TTL allowlist on the shared `policy` volume.
+
+### `fw` (repo root)
+Host-side helper: `./fw allow|deny|list|blocks|log`. Auto-detects the project name from the current directory. Run on the host, not inside the dev container.
 
 ## How to use
 
-1. Drop `.devcontainer/` into your project root.
+1. Drop `.devcontainer/` and `fw` into your project root.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
-3. First build: a few minutes. Subsequent starts: seconds.
-4. Open a terminal and run `claude`.
+3. First build: a few minutes (three images). Subsequent starts: seconds.
+4. Open a terminal in the `development` container and run `claude`.
+
+### Manage the allowlist from the host
+
+```bash
+./fw allow pypi.org                  # permanent allow
+./fw allow files.pythonhosted.org 60 # temporary allow, 60s TTL
+./fw deny  pypi.org                  # remove an allow (re-block); perm + temp
+./fw list                            # show the live, compiled allowlist
+./fw blocks                          # recent blocked requests
+./fw log                             # follow the access log
+```
+
+Changes take effect within ~5s (the firewall watcher reloads Squid). Run these on the **host**, not inside the dev container — `development` is deliberately unable to reach the management plane.
+
+### See blocks from inside the dev container
+- Each blocked request shows up as a `403` proxy error in your tools.
+- Read-only recent-blocks feed: `curl -s http://firewall:8099`
 
 ## Azure AI Foundry overlay
 
 This repo is currently configured to route Claude Code through Azure AI Foundry by default. Update the resource values below to match your environment.
 
-### 1. Firewall - verify your resource endpoints
+### 1. Firewall - add your resource endpoints to the allowlist
 
-In `init-firewall.sh`, verify the Azure section includes your endpoints:
+The default allowlist in [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default) already includes Microsoft Entra ID, Azure Resource Manager, `ai.azure.com`, and the common Azure data-plane wildcards. Add your per-resource endpoints (find them in the Azure portal under your resource → Keys and Endpoint, or `az cognitiveservices account show --name <n> --resource-group <rg> --query "properties.endpoints" -o json`).
+
+Two ways to add:
 
 ```bash
-# Microsoft Entra ID
-"login.microsoftonline.com"
-"login.microsoft.com"
-"login.live.com"
-"graph.microsoft.com"
+# Temporary/iterating — applies within ~5s, no rebuild needed:
+./fw allow YOUR-RESOURCE.services.ai.azure.com
 
-# Azure Resource Manager
-"management.azure.com"
-"management.core.windows.net"
-
-# Azure AI Foundry portal
-"ai.azure.com"
-
-# Your specific resource endpoint — find it in the Azure portal under
-# your resource → Keys and Endpoint, or:
-# az cognitiveservices account show --name <name> --resource-group <rg> \
-#   --query "properties.endpoints" -o json
-"YOUR-RESOURCE.services.ai.azure.com"
+# Permanent baseline — edit and rebuild the firewall image:
+#   1. add the line to .devcontainer/firewall/allowlist.default
+#   2. docker compose -f .devcontainer/docker-compose.yml build firewall
+#   3. Reopen in Container
 ```
 
-> **Important:** apex domains like `services.ai.azure.com` have no A records and will never resolve. Only add the full per-resource subdomain.
+Note: Squid's `dstdomain` ACL matches by hostname (not IP), so CDN/Azure IP rotation never breaks the allowlist. Wildcard entries (e.g. `.core.windows.net`) match all subdomains.
 
-### 2. devcontainer.json - verify Foundry env vars
+### 2. claude-switch.sh - verify Foundry defaults
 
-```jsonc
-"CLAUDE_CODE_USE_FOUNDRY": "1",
-"ANTHROPIC_FOUNDRY_RESOURCE": "YOUR-RESOURCE-NAME",
-"ANTHROPIC_DEFAULT_SONNET_MODEL": "claude-sonnet-4-6",
-"ANTHROPIC_DEFAULT_OPUS_MODEL": "claude-opus-4-6",
-"ANTHROPIC_DEFAULT_HAIKU_MODEL": "claude-haiku-4-5"
+Provider routing now lives in the in-shell switcher [`.devcontainer/development/claude-switch.sh`](.devcontainer/development/claude-switch.sh), not in `devcontainer.json`. Update the defaults near the top:
+
+```bash
+: "${ANTHROPIC_FOUNDRY_RESOURCE:=YOUR-RESOURCE-NAME}"
+: "${ANTHROPIC_DEFAULT_SONNET_MODEL:=claude-sonnet-4-6}"
+: "${ANTHROPIC_DEFAULT_OPUS_MODEL:=claude-opus-4-6}"
+: "${ANTHROPIC_DEFAULT_HAIKU_MODEL:=claude-haiku-4-5}"
 ```
+
+These are written into `~/.claude/settings.json` whenever you run `use-foundry`.
 
 ### 3. post-create.sh - verify settings writer and az login mode
 
-The script writes `~/.claude/settings.json` with Foundry env settings on first create and sets Azure CLI to browser login mode (`core.login_experience_v2=on`) when Foundry is enabled.
+[`.devcontainer/development/post-create.sh`](.devcontainer/development/post-create.sh) writes `~/.claude/settings.json` with Foundry env settings on first create and sets Azure CLI to browser login mode (`core.login_experience_v2=on`) when Foundry is enabled.
 
-Additionally, `postStartCommand` in `devcontainer.json` reapplies the same Azure CLI setting on each container start as a self-heal for existing containers.
+Additionally, `postStartCommand` in [`devcontainer.json`](.devcontainer/devcontainer.json) reapplies the same Azure CLI setting on each container start as a self-heal for existing containers.
 
 ### 4. Request access and authenticate
 
@@ -103,9 +133,9 @@ Additionally, `postStartCommand` in `devcontainer.json` reapplies the same Azure
 
 Azure tokens expire after roughly 1 hour of inactivity. Re-run `az login` if Claude starts returning auth errors.
 
-### Quick verify (Option B)
+### Quick verify
 
-Run these checks after a container restart to confirm browser-callback login is wired correctly.
+Run these checks after a container restart to confirm everything is wired correctly.
 
 Inside the container:
 
@@ -116,19 +146,20 @@ echo "CLAUDE_CODE_USE_FOUNDRY=${CLAUDE_CODE_USE_FOUNDRY:-unset}"
 # 2) Azure CLI is set to browser login mode
 az config get core.login_experience_v2 --query "value" -o tsv
 
-# 3) Firewall allows callback ingress range
-sudo iptables -S INPUT | grep -- '--dport 8400:8999'
+# 3) Proxy is in effect (no direct egress, only via firewall)
+echo "$HTTPS_PROXY"  # http://firewall:3128
+curl -sS https://api.github.com/zen   # 200 if allowlisted
+curl --noproxy '*' --max-time 5 -sS https://api.github.com/zen; echo "exit=$?"  # nonzero — no direct route
 ```
 
-On the host (PowerShell):
+On the host:
 
-```powershell
+```bash
 # Replace YOURPROJECT with your actual folder basename.
 docker ps --filter "name=claude-YOURPROJECT" --format "{{.Names}}\t{{.Ports}}"
 ```
 
-Expected output should include a localhost mapping for `8400-8999`, similar to:
-`127.0.0.1:8400-8999->8400-8999/tcp`
+Expected: three containers (`-development`, `-firewall`, `-control`) and the `development` container should show `127.0.0.1:8400-8999->8400-8999/tcp`.
 
 Login smoke test (inside container):
 
@@ -146,7 +177,7 @@ grep -Ei 'localhost|127\.0\.0\.1|redirect' /tmp/az-login-debug.log | tail -30
 
 ### Switching back to direct Anthropic API
 
-Set `CLAUDE_CODE_USE_FOUNDRY` to `"0"` in `devcontainer.json`, remove or adjust Foundry keys in `~/.claude/settings.json`, and restart Claude.
+Run `use-anthropic` in any container shell. It clears the Foundry env vars, rewrites `~/.claude/settings.json`, and launches `claude login`.
 
 ## Multi-agent inside this container
 
@@ -166,28 +197,39 @@ tmux attach -t agents
 
 ## Caveats
 
-**IP filtering is snapshot-based.** The firewall resolves FQDNs once at startup. If Azure or a CDN rotates IPs, calls may start failing. Re-run `sudo /usr/local/bin/init-firewall.sh` to refresh. For tighter enforcement, use an SNI-filtering HTTPS proxy.
+**Domain-based filtering, not IP-based.** Allowlist entries are hostnames. CDN/Azure IP rotation does not break anything. Wildcard entries (e.g. `.core.windows.net`) match all subdomains.
 
-**Azure parent domains have no A records.** Only per-resource subdomains resolve. Never add apex domains like `services.ai.azure.com` to the firewall — they will always warn and provide no protection.
+**Node tools need `global-agent`** to honour `HTTPS_PROXY`. The image installs it globally and preloads it via `NODE_OPTIONS=-r global-agent/bootstrap`, which covers `claude`, MCP servers, and the VS Code extension host. A Node script that explicitly clears `NODE_OPTIONS` (rare) will fail closed — that's correct behaviour, not a leak.
 
-**SSH agent forwarding on Windows** requires `npiperelay` + the Windows OpenSSH Authentication Agent service. Until configured, use HTTPS + PAT or `gh auth login`.
+**Proxy-unaware tools fail closed.** `development` has no route to the internet outside the proxy. A tool that ignores `HTTP(S)_PROXY` cannot reach anything — there's no fallback path to bypass.
+
+**SSH agent forwarding on Windows** requires `npiperelay` + the Windows OpenSSH Authentication Agent service. Until configured, use HTTPS + PAT or `gh auth login`. The SSH mount line in `docker-compose.yml` is commented out by default.
 
 **macOS bind mount performance.** `node_modules`, `.venv`, and similar high-IOPS paths are on named volumes in this config. If you add new high-write paths, follow the same pattern.
 
-**Firewall rules reset on container restart.** `postStartCommand` re-applies them automatically.
+**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. Edit the baked default in `.devcontainer/firewall/allowlist.default` and rebuild the firewall image to change the seed; use `./fw allow|deny` for live edits.
 
 ## Debugging blocked traffic
 
 ```bash
-sudo dmesg | grep fw-drop-out | tail -30
-dig -x <blocked-ip>   # find out which hostname the IP belongs to
-# Add the hostname to ALLOWED_DOMAINS and re-run:
-sudo /usr/local/bin/init-firewall.sh
+# From inside the dev container:
+curl -s http://firewall:8099 | tail -30
+
+# From the host:
+./fw blocks                          # last 30 access log lines
+./fw log                             # live tail
+./fw list                            # current compiled allowlist
+./fw allow <hostname>                # add the missing destination
+./fw allow <hostname> 300            # 5-minute temporary allow while debugging
 ```
 
 ## Cleanup
 
 ```bash
+# Stop and remove all three containers for this project:
+docker compose -f .devcontainer/docker-compose.yml down -v
+
+# Or by name (replace YOURPROJECT with your folder basename):
 docker rm -f $(docker ps -aq --filter "name=claude-YOURPROJECT")
-docker volume ls --format '{{.Name}}' | grep '^YOURPROJECT-' | xargs docker volume rm
+docker volume ls --format '{{.Name}}' | grep '^YOURPROJECT-' | xargs -r docker volume rm
 ```

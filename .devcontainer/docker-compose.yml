@@ -1,0 +1,104 @@
+name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}
+
+services:
+  firewall:
+    build: ./firewall
+    container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-firewall
+    hostname: firewall
+    networks: [internal, egress]
+    volumes:
+      - "policy:/policy"
+      - "logs:/var/log/squid"
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep squid >/dev/null || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  development:
+    build:
+      context: ./development
+      args:
+        USER_UID: "1000"
+        USER_GID: "1000"
+    container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-development
+    hostname: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}
+    networks: [internal]                 # internal-only = default-deny egress
+    # Azure CLI browser-login callback. Squid filters egress only, so inbound
+    # publishes don't bypass the firewall. Localhost-only on the host.
+    ports:
+      - "127.0.0.1:8400-8999:8400-8999"
+    environment:
+      TZ: ${TZ:-UTC}
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      HTTP_PROXY:  http://firewall:3128
+      HTTPS_PROXY: http://firewall:3128
+      http_proxy:  http://firewall:3128
+      https_proxy: http://firewall:3128
+      NO_PROXY:  localhost,127.0.0.1,firewall
+      no_proxy:  localhost,127.0.0.1,firewall
+      GLOBAL_AGENT_HTTP_PROXY: http://firewall:3128
+      NODE_OPTIONS: "-r global-agent/bootstrap"
+    volumes:
+      - "..:/workspace:cached"
+      - "claude:/home/devuser/.claude"
+      - "claude-json:/home/devuser/.claude-json"
+      - "history:/commandhistory"
+      - "node-modules:/workspace/node_modules"
+      - "npm-cache:/home/devuser/.npm"
+      - "pip-cache:/home/devuser/.cache/pip"
+      - "uv-cache:/home/devuser/.cache/uv"
+      - "cargo-registry:/home/devuser/.cargo/registry"
+      - "${HOST_GITCONFIG}:/home/devuser/.gitconfig:ro"
+      # SSH agent forwarding (macOS/Linux). Disabled by default — see README.
+      # - "${SSH_AUTH_SOCK:-/dev/null}:/ssh-agent"
+    # Resource limits (compose v2 non-swarm spellings).
+    cpus: 4.0
+    mem_limit: 8g
+    pids_limit: 512
+    user: devuser
+    working_dir: /workspace
+    depends_on:
+      firewall: { condition: service_healthy }
+    command: ["sleep", "infinity"]
+
+  control:
+    build: ./control
+    container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-control
+    networks: [egress]                   # unrestricted; NOT on internal
+    volumes:
+      - "policy:/policy"
+      - "logs:/var/log/squid:ro"
+    command: ["sleep", "infinity"]
+    restart: unless-stopped
+
+networks:
+  internal:
+    internal: true                       # no external route on Win/Mac/Linux
+  egress: {}
+
+volumes:
+  # Per-project naming via `name:` keeps caches isolated across projects.
+  # The map key is the short alias used in `services.*.volumes` above; the
+  # `name` is the actual Docker volume name (prefixed with project basename).
+  policy:
+    name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-policy
+  logs:
+    name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-logs
+  claude:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-claude
+  claude-json:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-claude-json
+  history:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-history
+  node-modules:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-node-modules
+  npm-cache:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-npm-cache
+  pip-cache:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-pip-cache
+  uv-cache:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-uv-cache
+  cargo-registry:
+    name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-cargo-registry

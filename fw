@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Host-side firewall management. Run from the AgenticDevcontainer project root
+# on your HOST shell (WSL/macOS) — NOT inside the dev container (development
+# can't reach the management plane).
+set -euo pipefail
+PROJECT="${PROJECT:-$(basename "$PWD")}"
+CTRL="claude-${PROJECT}-control"
+case "${1:-}" in
+  allow)  shift; docker exec "$CTRL" allow "$@" ;;
+  deny)   shift; docker exec "$CTRL" deny  "$@" ;;
+  blocks) docker exec "$CTRL" sh -c 'tail -n 30 /var/log/squid/access.log' ;;
+  list)   docker exec "$CTRL" sh -c 'cat /policy/allowlist.acl' ;;
+  log)    docker exec "$CTRL" sh -c 'tail -f /var/log/squid/access.log' ;;
+  *) echo "usage: ./fw allow <domain> [ttl_seconds] | ./fw deny <domain> | ./fw blocks | ./fw list | ./fw log"
+     echo "       (override project name with: PROJECT=<name> ./fw ...)" ;;
+esac
