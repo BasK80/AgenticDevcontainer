@@ -48,7 +48,7 @@ Image for the dev container. Installs dev tools, Azure CLI, GitHub CLI, non-root
 Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `claude-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
 
 ### `.devcontainer/development/claude-switch.sh`
-Defines `use-foundry` / `use-anthropic` / `claude-mode` shell commands for switching the Claude provider in-place.
+Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode` shell commands for switching the Claude provider in-place. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
 
 ### `.devcontainer/firewall/`
 Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s and after `allow`/`deny`), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`).
@@ -82,6 +82,76 @@ Changes take effect within ~5s (the firewall watcher reloads Squid). Run these o
 ### See blocks from inside the dev container
 - Each blocked request shows up as a `403` proxy error in your tools.
 - Read-only recent-blocks feed: `curl -s http://firewall:8099`
+
+## Anthropic API key (default provider)
+
+When `ANTHROPIC_API_KEY` is exported on the host at the time you open the container, the dev container picks `use-anthropic-key` as the default provider on first create. The key (and an optional `ANTHROPIC_BASE_URL`) is passed in via `initializeCommand` → `.devcontainer/.env` → the `development` service `environment` block in [docker-compose.yml](.devcontainer/docker-compose.yml). `.env` is gitignored, but the key is still readable by anything that can run `docker inspect` on the container — do not use a key you wouldn't put on disk.
+
+The firewall already allows `api.anthropic.com`. If you point `ANTHROPIC_BASE_URL` at a custom host (proxy, gateway), add it to the allowlist: `./fw allow your-gateway.example.com`.
+
+### Set the key on the host
+
+Only the shell that launches VS Code / `devcontainer up` needs the variable set; restart VS Code afterwards so it re-runs `initializeCommand`.
+
+**Linux / macOS / WSL** — add to `~/.bashrc`, `~/.zshrc`, or `~/.profile`:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+# Optional — only set if you route through a custom gateway:
+# export ANTHROPIC_BASE_URL="https://your-gateway.example.com"
+```
+
+Then open a fresh terminal and launch VS Code from it (`code .`) so the variable is inherited.
+
+**Windows (PowerShell)** — persist for the user (no admin needed):
+
+```powershell
+[Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY', 'sk-ant-...', 'User')
+# Optional:
+# [Environment]::SetEnvironmentVariable('ANTHROPIC_BASE_URL', 'https://your-gateway.example.com', 'User')
+```
+
+Then fully quit VS Code (all windows) and relaunch so it picks up the new user environment.
+
+Verify on the host before reopening the container:
+
+```bash
+# Linux/macOS/WSL
+echo "${ANTHROPIC_API_KEY:0:10}..."
+```
+
+```powershell
+# PowerShell
+"$($env:ANTHROPIC_API_KEY.Substring(0,10))..."
+```
+
+Verify inside the container after rebuild:
+
+```bash
+claude-mode                                  # should print: Anthropic API key (base: ...)
+echo "${ANTHROPIC_API_KEY:0:10}..."          # should print the prefix
+grep ANTHROPIC_API_KEY ~/.claude/settings.json
+```
+
+If you set the key after the container was already created, run `use-anthropic-key` once in the container shell to rewrite `~/.claude/settings.json`.
+
+### Set the key from inside the container (survives restarts)
+
+You can skip the host setup entirely and configure the key from a shell inside the dev container:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+# Optional — only set if you route through a custom gateway:
+# export ANTHROPIC_BASE_URL="https://your-gateway.example.com"
+use-anthropic-key
+```
+
+`use-anthropic-key` writes the literal value into `~/.claude/settings.json`, which lives on the named Docker volume `${PROJECT}-claude`. Named volumes survive `docker compose down`, container rebuilds, and image rebuilds — only `docker volume rm` (or `docker compose down -v`) removes them. Every new shell will pick up the persisted key on container start.
+
+Notes:
+- The host-side passthrough only sets the var when **non-empty** on the host (see [initialize.sh](.devcontainer/initialize.sh)). If the host has no `ANTHROPIC_API_KEY`, the container starts without it set, and the value from `~/.claude/settings.json` is the source of truth.
+- The key is stored plaintext in the named volume. Anyone with access to the host Docker daemon can read it (`docker run --rm -v ${PROJECT}-claude:/c alpine cat /c/settings.json`).
+- To rotate, just re-run `use-anthropic-key` with a new value exported in the current shell.
 
 ## Azure AI Foundry overlay
 
@@ -175,9 +245,12 @@ az login --debug 2>&1 | tee /tmp/az-login-debug.log
 grep -Ei 'localhost|127\.0\.0\.1|redirect' /tmp/az-login-debug.log | tail -30
 ```
 
-### Switching back to direct Anthropic API
+### Switching back to Anthropic
 
-Run `use-anthropic` in any container shell. It clears the Foundry env vars, rewrites `~/.claude/settings.json`, and launches `claude login`.
+Two options, both clear the Foundry env vars and rewrite `~/.claude/settings.json`:
+
+- `use-anthropic-key` — use a direct Anthropic API key. Requires `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`) to be present in the container env — see [Anthropic API key (default provider)](#anthropic-api-key-default-provider) for host-side setup. **Default on first create when the key is set.**
+- `use-anthropic` — use the OAuth login flow (Claude subscription). Launches `claude login` on first use.
 
 ## Multi-agent inside this container
 

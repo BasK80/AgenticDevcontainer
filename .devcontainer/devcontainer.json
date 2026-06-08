@@ -9,10 +9,10 @@
   "remoteUser": "devuser",
   "containerUser": "devuser",
 
-  // initializeCommand runs on the host before Compose. It writes the .env
-  // file that docker-compose.yml reads for per-project volume/container
-  // names and host-env passthrough. .env is gitignored via *.env.
-  "initializeCommand": "bash -c 'cd .devcontainer && { echo LOCAL_WORKSPACE_FOLDER_BASENAME=${localWorkspaceFolderBasename}; echo TZ=${localEnv:TZ:-UTC}; echo CLAUDE_CODE_OAUTH_TOKEN=${localEnv:CLAUDE_CODE_OAUTH_TOKEN}; echo HOST_GITCONFIG=${localEnv:USERPROFILE}${localEnv:HOME}/.gitconfig; } > .env'",
+  // initializeCommand runs on the host before Compose. Delegated to a script
+  // so we can conditionally omit opt-in env vars (writing them as empty would
+  // override values persisted in the container's ~/.claude/settings.json).
+  "initializeCommand": "bash .devcontainer/initialize.sh",
 
   // Runs once after first container creation.
   "postCreateCommand": "bash .devcontainer/development/post-create.sh",

@@ -23,7 +23,8 @@ set -euo pipefail
 # fi
 
 # ── Claude provider switcher ──────────────────────────────────────────────
-# Install `use-foundry` / `use-anthropic` / `claude-mode` shell commands.
+# Install `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode`
+# shell commands.
 SWITCH_SRC="/workspace/.devcontainer/development/claude-switch.sh"
 ZSHRC="$HOME/.zshrc"
 if [[ -f "$SWITCH_SRC" ]] && ! grep -q "claude-switch.sh" "$ZSHRC" 2>/dev/null; then
@@ -31,8 +32,10 @@ if [[ -f "$SWITCH_SRC" ]] && ! grep -q "claude-switch.sh" "$ZSHRC" 2>/dev/null; 
     echo "[setup] Registered claude-switch.sh in ~/.zshrc"
 fi
 
-# Pick a default provider on first creation: Foundry if explicitly requested
-# via CLAUDE_CODE_USE_FOUNDRY=1, otherwise the direct Anthropic API.
+# Pick a default provider on first creation:
+#   - Foundry if CLAUDE_CODE_USE_FOUNDRY=1
+#   - Anthropic API key otherwise (the default; requires ANTHROPIC_API_KEY)
+#   - Falls back to Anthropic OAuth if no API key is present
 SETTINGS="$HOME/.claude/settings.json"
 if [[ ! -f "$SETTINGS" ]]; then
     # shellcheck disable=SC1090
@@ -40,9 +43,12 @@ if [[ ! -f "$SETTINGS" ]]; then
     if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
         use-foundry >/dev/null
         echo "[setup] Default provider: Azure AI Foundry"
+    elif [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        use-anthropic-key >/dev/null
+        echo "[setup] Default provider: Anthropic API key (base: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com})"
     else
         use-anthropic >/dev/null
-        echo "[setup] Default provider: Anthropic direct API"
+        echo "[setup] Default provider: Anthropic OAuth (no ANTHROPIC_API_KEY in env)"
     fi
 else
     echo "[setup] $SETTINGS already exists — leaving provider settings as-is"
@@ -55,12 +61,13 @@ if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
 fi
 
 echo ""
-echo "┌─────────────────────────────────────────────────────────┐"
-echo "│  Switch Claude provider at any time:                     │"
-echo "│    use-foundry      → Azure AI Foundry (run az login)    │"
-echo "│    use-anthropic    → Anthropic direct API               │"
-echo "│    claude-mode      → show active provider               │"
-echo "└─────────────────────────────────────────────────────────┘"
+echo "┌──────────────────────────────────────────────────────────────┐"
+echo "│  Switch Claude provider at any time:                          │"
+echo "│    use-anthropic-key → Anthropic API key (default)            │"
+echo "│    use-foundry       → Azure AI Foundry (run az login)        │"
+echo "│    use-anthropic     → Anthropic OAuth (Claude subscription)  │"
+echo "│    claude-mode       → show active provider                   │"
+echo "└──────────────────────────────────────────────────────────────┘"
 # ─────────────────────────────────────────────────────────────────────────
 
 echo "[post-create] done."

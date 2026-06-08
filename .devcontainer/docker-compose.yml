@@ -29,9 +29,14 @@ services:
     # publishes don't bypass the firewall. Localhost-only on the host.
     ports:
       - "127.0.0.1:8400-8999:8400-8999"
+    # Opt-in passthrough (CLAUDE_CODE_OAUTH_TOKEN, ANTHROPIC_API_KEY,
+    # ANTHROPIC_BASE_URL) lives in .env, written by initialize.sh.
+    # env_file only sets vars that are present in the file, so unset host
+    # vars don't clobber values persisted in ~/.claude/settings.json.
+    env_file:
+      - .env
     environment:
       TZ: ${TZ:-UTC}
-      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
       HTTP_PROXY:  http://firewall:3128
       HTTPS_PROXY: http://firewall:3128
       http_proxy:  http://firewall:3128
@@ -39,7 +44,7 @@ services:
       NO_PROXY:  localhost,127.0.0.1,firewall
       no_proxy:  localhost,127.0.0.1,firewall
       GLOBAL_AGENT_HTTP_PROXY: http://firewall:3128
-      NODE_OPTIONS: "-r global-agent/bootstrap"
+      NODE_OPTIONS: "-r /usr/local/lib/global-agent-bootstrap.js"
     volumes:
       - "..:/workspace:cached"
       - "claude:/home/devuser/.claude"

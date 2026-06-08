@@ -23,6 +23,12 @@ mkdir -p /var/log/squid /var/spool/squid
 chown -R proxy:proxy /var/log/squid /var/spool/squid 2>/dev/null || true
 squid -z --foreground 2>/dev/null || true
 
+# Squid execs as PID 1. If the previous container was killed ungracefully
+# (e.g. VS Code shutting down its devcontainer), /run/squid.pid is left behind
+# pointing at PID 1, which collides with the new instance and triggers
+# "FATAL: Squid is already running". Clear it before launch.
+rm -f /run/squid.pid
+
 /usr/local/bin/watcher.sh &
 /usr/local/bin/blockfeed.sh &
 

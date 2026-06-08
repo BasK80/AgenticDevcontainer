@@ -3,6 +3,23 @@ FROM node:20-bookworm
 ARG USER_UID=1000
 ARG USER_GID=1000
 
+# Defensive: some compose implementations (e.g. Rancher Desktop) leak the
+# service `environment` block into the build. We must clear:
+#   - NODE_OPTIONS=-r global-agent/bootstrap → every node/npm invocation fails
+#     with MODULE_NOT_FOUND until global-agent is installed below.
+#   - HTTP(S)_PROXY=http://firewall:3128 → npm/curl try to reach the firewall
+#     host, which doesn't exist at build time (only on the runtime compose
+#     network), and fail with EAI_AGAIN.
+# Compose re-injects all of these at container start, so runtime is unaffected.
+ENV NODE_OPTIONS="" \
+    HTTP_PROXY="" \
+    HTTPS_PROXY="" \
+    http_proxy="" \
+    https_proxy="" \
+    NO_PROXY="" \
+    no_proxy="" \
+    GLOBAL_AGENT_HTTP_PROXY=""
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git curl wget ca-certificates gnupg lsb-release \
       vim zsh tmux \
@@ -55,20 +72,29 @@ RUN mkdir -p \
         /workspace/node_modules
 
 # ── Egress proxy plumbing ─────────────────────────────────────────────────
-# Subject has no direct route to the internet; the only path out is the
-# Squid proxy at firewall:3128. Tools that don't honour these env vars fail
-# closed (no route), which is the intended behaviour.
-ENV HTTP_PROXY=http://firewall:3128 \
-    HTTPS_PROXY=http://firewall:3128 \
-    http_proxy=http://firewall:3128 \
-    https_proxy=http://firewall:3128 \
-    NO_PROXY=localhost,127.0.0.1,firewall \
-    no_proxy=localhost,127.0.0.1,firewall \
-    GLOBAL_AGENT_HTTP_PROXY=http://firewall:3128 \
-    NODE_OPTIONS=-r\ global-agent/bootstrap
+# Runtime proxy env vars (HTTP_PROXY, HTTPS_PROXY, NO_PROXY, NODE_OPTIONS,
+# GLOBAL_AGENT_HTTP_PROXY) are injected by compose's `environment:` block.
+# We deliberately do NOT set them as image ENV: `firewall` is unreachable
+# during `docker build`, so any proxy-aware tool (npm, curl) would fail.
+# The git/npm proxy configs below bake the value into /etc/gitconfig and
+# /root/.npmrc so it persists when env vars happen to be missing.
 
 RUN git config --system http.proxy  http://firewall:3128 \
  && git config --system https.proxy http://firewall:3128
+
+# Install global-agent system-wide BEFORE writing the npm proxy config:
+# during `docker build`, the `firewall` host is unreachable, so npm must go
+# direct. VS Code Server's bundled Node (which has its own module search
+# path and does NOT see /home/devuser/.npm-global) can still resolve it
+# from /usr/local/lib/node_modules via NODE_PATH set further down.
+RUN npm install -g global-agent
+
+# v4 dropped the root-level `bootstrap.js` shim that self-invoked on require,
+# so the canonical `NODE_OPTIONS=-r global-agent/bootstrap` recipe no longer
+# both resolves AND activates the proxy. Ship our own one-line shim that
+# requires the v4 routine and calls it; NODE_OPTIONS points at this file.
+RUN printf "require('global-agent/dist/routines/bootstrap').default();\n" \
+      > /usr/local/lib/global-agent-bootstrap.js
 
 RUN npm config set proxy http://firewall:3128 \
  && npm config set https-proxy http://firewall:3128
@@ -81,10 +107,16 @@ RUN mkdir -p /home/devuser/.npm-global && chown -R devuser:devuser /home/devuser
 USER devuser
 WORKDIR /workspace
 
-# global-agent makes Node's native http/https/fetch honour HTTP(S)_PROXY,
-# which Node itself ignores. Required because Claude Code, MCP servers, and
-# most VS Code extensions are Node processes on internal-only networking.
-RUN npm install -g @anthropic-ai/claude-code global-agent
+# Claude Code goes into devuser's prefix so it can be updated without root.
+RUN npm install -g @anthropic-ai/claude-code
+
+# NODE_PATH points at the system-wide npm root so any Node binary — including
+# VS Code Server's bundled node — can resolve `global-agent` when the shim
+# preloads it. Set AFTER all build-time `npm`/`node` invocations so the
+# preload file is guaranteed to exist when it's referenced.
+ENV NODE_PATH=/usr/local/lib/node_modules \
+    GLOBAL_AGENT_HTTP_PROXY=http://firewall:3128 \
+    NODE_OPTIONS=-r\ /usr/local/lib/global-agent-bootstrap.js
 
 RUN echo 'export HISTFILE=/commandhistory/.zsh_history' >> ~/.zshrc && \
     echo 'export HISTSIZE=10000 SAVEHIST=10000' >> ~/.zshrc && \
