@@ -72,10 +72,11 @@ services:
     build: ./control
     container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-control
     networks: [egress]                   # unrestricted; NOT on internal
+    ports:
+      - "127.0.0.1:8088:8088"            # dashboard — localhost only
     volumes:
       - "policy:/policy"
       - "logs:/var/log/squid:ro"
-    command: ["sleep", "infinity"]
     restart: unless-stopped
 
 networks:

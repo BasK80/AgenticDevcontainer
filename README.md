@@ -12,7 +12,7 @@ A generic hardened Dev Container for running Claude Code (and other AI coding ag
 
 **Default-DENY outbound network via a separate firewall container.** The dev container (`development`) is on a Docker `internal: true` network with **no route to the internet**. The only egress path is a Squid proxy running in a sibling `firewall` container that enforces a domain allowlist (see [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default)). Denied requests return a readable `403`. Tools that ignore `HTTP(S)_PROXY` fail closed (no route out), they don't bypass the firewall.
 
-**Out-of-band policy plane.** A third `control` container hosts the `allow`/`deny` commands and the policy volume. It sits on a separate network and is **unreachable from `development`** — an agent inside `development` cannot modify its own allowlist.
+**Out-of-band management plane (QoL).** A third `control` container hosts the `allow`/`deny` commands, the policy volume, and the web dashboard. It sits on a separate network (`egress` only, never `internal`) and is therefore unreachable from `development`. The hard isolation is the network topology — `development` has no route to `control` regardless of what `control` runs. `control` is a convenience layer: the security would hold even if it were removed and the policy volume were edited directly. An agent inside `development` cannot modify its own allowlist.
 
 **Domain-based filtering.** The allowlist is hostnames, not snapshotted IPs — resilient to CDN/Azure IP rotation. No periodic re-resolution needed.
 
@@ -83,6 +83,22 @@ Host-side helper: `./tools/fw allow|deny|list|blocks|log`. Auto-detects the proj
 ```
 
 Changes take effect within ~5s (the firewall watcher reloads Squid). Run these on the **host**, not inside the dev container — `development` is deliberately unable to reach the management plane.
+
+### Web dashboard (localhost only)
+
+A single-page dashboard is served by the `control` container at **<http://127.0.0.1:8088>**. It is bound to `127.0.0.1` only — the same localhost-only pattern as the Azure login ports — and is not reachable from inside `development`.
+
+| Section | What it shows |
+|---|---|
+| **Live Traffic** | Real-time stream of every proxied request, colour-coded green (allowed) / red (denied). Collapsible; filter text persists across reloads. |
+| **Allowlist** | Permanent and temporary entries. Each row has a **Remove** button. Temporary entries show a live countdown. |
+| **Recently Blocked** | Domains with at least one denied request, grouped by host and sorted by recency. One-click **Permanent** / **5m** / **15m** / **1h** and **Custom…** allow buttons per row. |
+
+Every mutation calls the same `allow.sh` / `deny.sh` scripts as `./tools/fw`, so the CLI and the dashboard are always in sync.
+
+```bash
+./tools/fw web    # print the dashboard URL
+```
 
 ### See blocks from inside the dev container
 - Each blocked request shows up as a `403` proxy error in your tools.

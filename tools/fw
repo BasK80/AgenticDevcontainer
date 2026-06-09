@@ -11,6 +11,7 @@ case "${1:-}" in
   blocks) docker exec "$CTRL" show_blocks ;;
   list)   docker exec "$CTRL" list_allows ;;
   log)    docker exec -it "$CTRL" tail_firewall ;;
-  *) echo "usage: ./tools/fw allow <domain> [ttl_seconds] | ./tools/fw deny <domain> | ./tools/fw blocks | ./tools/fw list | ./tools/fw log"
+  web)    echo "http://127.0.0.1:8088" ;;
+  *) echo "usage: ./tools/fw allow <domain> [ttl_seconds] | ./tools/fw deny <domain> | ./tools/fw blocks | ./tools/fw list | ./tools/fw log | ./tools/fw web"
      echo "       (override project name with: PROJECT=<name> ./tools/fw ...)" ;;
 esac
