@@ -17,8 +17,8 @@
   // Runs once after first container creation.
   "postCreateCommand": "bash .devcontainer/development/post-create.sh",
 
-  // Keep Azure CLI browser login flow configured for Foundry mode on every start.
-  "postStartCommand": "if [ \"${CLAUDE_CODE_USE_FOUNDRY:-0}\" = \"1\" ]; then az config set core.login_experience_v2=on >/dev/null 2>&1 || true; fi",
+  // Runs on every container start (including after rebuilds).
+  "postStartCommand": "bash .devcontainer/development/post-start.sh && if [ \"${CLAUDE_CODE_USE_FOUNDRY:-0}\" = \"1\" ]; then az config set core.login_experience_v2=on >/dev/null 2>&1 || true; fi",
 
   "customizations": {
     "vscode": {

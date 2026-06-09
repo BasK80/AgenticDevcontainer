@@ -66,6 +66,24 @@ if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
   echo "[setup] Azure CLI browser login flow enabled for Foundry"
 fi
 
+# ── Persist ~/.claude.json on the ~/.claude volume ───────────────────────
+# ~/.claude.json holds OAuth tokens and is NOT inside ~/.claude, so it would
+# be lost on every container rebuild. We symlink it into the persisted volume
+# so it survives rebuilds. On a fresh container the symlink target may not
+# exist yet — that's fine; Claude will create it on first login.
+CLAUDE_JSON_STORE="$HOME/.claude/.claude.json"
+CLAUDE_JSON_LINK="$HOME/.claude.json"
+# If the real file exists (not a symlink), move it onto the persisted volume.
+if [[ -f "$CLAUDE_JSON_LINK" && ! -L "$CLAUDE_JSON_LINK" ]]; then
+    mv "$CLAUDE_JSON_LINK" "$CLAUDE_JSON_STORE"
+    echo "[setup] Moved ~/.claude.json → ~/.claude/.claude.json (persisted)"
+fi
+# Create or recreate the symlink.
+if [[ ! -L "$CLAUDE_JSON_LINK" ]]; then
+    ln -sf "$CLAUDE_JSON_STORE" "$CLAUDE_JSON_LINK"
+    echo "[setup] Symlinked ~/.claude.json → ~/.claude/.claude.json"
+fi
+
 echo ""
 echo "┌──────────────────────────────────────────────────────────────┐"
 echo "│  Switch Claude provider at any time:                          │"
