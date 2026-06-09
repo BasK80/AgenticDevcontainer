@@ -327,3 +327,70 @@ docker compose -f .devcontainer/docker-compose.yml down -v
 docker rm -f $(docker ps -aq --filter "name=claude-YOURPROJECT")
 docker volume ls --format '{{.Name}}' | grep '^YOURPROJECT-' | xargs -r docker volume rm
 ```
+
+## Minimal footprint: removing the control container
+
+The `control` container is entirely optional. Security enforcement lives exclusively in the `firewall` container — `control` is a convenience layer (management scripts and the web dashboard) and can be removed without weakening isolation.
+
+### What to change in `docker-compose.yml`
+
+1. **Delete the `control:` service block** (the whole stanza, including `ports`, `volumes`, and `networks`).
+2. The `egress` network must **stay** — the `firewall` service needs it to route traffic to the internet.
+3. The `policy` and `logs` volumes must **stay** — the `firewall` service mounts them.
+
+Nothing else needs to change. After editing, recreate the stack:
+
+```bash
+docker compose -f .devcontainer/docker-compose.yml up -d --remove-orphans
+```
+
+> **Note:** If the `policy` volume does not exist yet (first run after removing `control`), create it manually before starting:
+> ```bash
+> docker volume create claude-YOURPROJECT-policy
+> ```
+> Replace `YOURPROJECT` with your folder basename.
+
+The `tools/fw` wrapper and the web dashboard at `:8088` will no longer be available. Use the direct approach below instead.
+
+### Managing the firewall without the control container
+
+All policy state lives on the `policy` volume, mounted at `/policy` inside the `firewall` container. The watcher process inside the container recompiles the ACL and reconfigures Squid within ~5 seconds of any change.
+
+| File | Purpose |
+|---|---|
+| `/policy/allowlist.acl.perm` | Permanent allows — one domain per line. |
+| `/policy/ttl.tsv` | Temporary allows — tab-separated `<epoch_expiry>\t<domain>`. |
+| `/policy/allowlist.acl` | Compiled ACL read by Squid — **auto-generated, do not edit directly**. |
+
+```bash
+# Set a shell variable for convenience (run on the host):
+FW="claude-$(basename "$PWD")-firewall"
+
+# Open a shell in the firewall container:
+docker exec -it "$FW" sh
+
+# --- Inside the container ---
+
+# Show the current permanent allowlist:
+cat /policy/allowlist.acl.perm
+
+# Show the live compiled ACL (what Squid is actually enforcing):
+cat /policy/allowlist.acl
+
+# Permanently allow a domain:
+echo "example.com" >> /policy/allowlist.acl.perm
+
+# Remove a permanent allow (exact match):
+sed -i '/^example\.com$/d' /policy/allowlist.acl.perm
+
+# Add a temporary allow that expires in 300 seconds:
+printf '%s\texample.com\n' "$(( $(date +%s) + 300 ))" >> /policy/ttl.tsv
+
+# Show recent blocked requests:
+tail -30 /var/log/squid/access.log | grep DENIED
+
+# Follow the live access log:
+tail -f /var/log/squid/access.log
+```
+
+All edits to `/policy/allowlist.acl.perm` and `/policy/ttl.tsv` are automatically picked up by the watcher within ~5 seconds — no manual Squid reload needed.
