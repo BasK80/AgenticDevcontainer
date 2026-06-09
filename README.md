@@ -18,7 +18,7 @@ A generic hardened Dev Container for running Claude Code (and other AI coding ag
 
 **Azure browser callback ingress (localhost-only).** To support `az login` browser flow in-container, localhost ports `8400-8999` are published from host to `development`. The firewall only filters egress, so inbound publishes don't bypass it. Limited to `127.0.0.1` on the host.
 
-**Non-root user, no sudo.** Container runs as `devuser` (UID 1000) with no sudo privileges whatsoever. The previous `init-firewall.sh` sudoers entry is gone — there's no in-container firewall to manage.
+**Non-root user, no sudo.** Container runs as `devuser` (UID 1000) with no sudo privileges whatsoever.
 
 **Resource limits.** CPU (4 cores), memory (8 GB), PID (512) caps prevent a runaway agent from affecting the host.
 
