@@ -47,6 +47,7 @@ services:
       NODE_OPTIONS: "-r /usr/local/lib/global-agent-bootstrap.js"
     volumes:
       - "..:/workspace:cached"
+      - "../.devcontainer:/workspace/.devcontainer:ro"
       - "claude:/home/devuser/.claude"
       - "claude-json:/home/devuser/.claude-json"
       - "history:/commandhistory"

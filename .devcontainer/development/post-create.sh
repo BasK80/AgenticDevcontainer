@@ -54,6 +54,12 @@ else
     echo "[setup] $SETTINGS already exists — leaving provider settings as-is"
 fi
 
+# Ensure /workspace is trusted — idempotent, safe to run on every start.
+jq --arg p /workspace \
+   '.allowedPaths = ((.allowedPaths // []) + [$p] | unique)' \
+   "$SETTINGS" > "${SETTINGS}.tmp" && mv "${SETTINGS}.tmp" "$SETTINGS"
+echo "[setup] /workspace added to Claude allowedPaths"
+
 # Use browser callback login flow when Foundry mode is enabled.
 if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
   az config set core.login_experience_v2=on 2>/dev/null || true

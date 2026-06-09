@@ -26,39 +26,42 @@ _CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 _claude_write_settings() {
     # $1 = "foundry" | "anthropic-key" | "anthropic"
+    # Merges only the "env" key so that user-set fields (model, theme,
+    # allowedPaths, etc.) survive provider switches.
     mkdir -p "$(dirname "$_CLAUDE_SETTINGS")"
+
+    local new_env
     case "$1" in
     foundry)
-        cat > "$_CLAUDE_SETTINGS" <<EOF
-{
-  "env": {
-    "CLAUDE_CODE_USE_FOUNDRY": "1",
-    "ANTHROPIC_FOUNDRY_RESOURCE": "${ANTHROPIC_FOUNDRY_RESOURCE}",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "${ANTHROPIC_DEFAULT_SONNET_MODEL}",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL": "${ANTHROPIC_DEFAULT_OPUS_MODEL}",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "${ANTHROPIC_DEFAULT_HAIKU_MODEL}"
-  }
-}
-EOF
+        new_env=$(jq -n \
+            --arg resource "${ANTHROPIC_FOUNDRY_RESOURCE}" \
+            --arg sonnet   "${ANTHROPIC_DEFAULT_SONNET_MODEL}" \
+            --arg opus     "${ANTHROPIC_DEFAULT_OPUS_MODEL}" \
+            --arg haiku    "${ANTHROPIC_DEFAULT_HAIKU_MODEL}" \
+            '{"CLAUDE_CODE_USE_FOUNDRY":"1",
+              "ANTHROPIC_FOUNDRY_RESOURCE":$resource,
+              "ANTHROPIC_DEFAULT_SONNET_MODEL":$sonnet,
+              "ANTHROPIC_DEFAULT_OPUS_MODEL":$opus,
+              "ANTHROPIC_DEFAULT_HAIKU_MODEL":$haiku}')
         ;;
     anthropic-key)
-        cat > "$_CLAUDE_SETTINGS" <<EOF
-{
-  "env": {
-    "ANTHROPIC_API_KEY": "${ANTHROPIC_API_KEY:-}",
-    "ANTHROPIC_BASE_URL": "${ANTHROPIC_BASE_URL}"
-  }
-}
-EOF
+        new_env=$(jq -n \
+            --arg key  "${ANTHROPIC_API_KEY:-}" \
+            --arg base "${ANTHROPIC_BASE_URL}" \
+            '{"ANTHROPIC_API_KEY":$key,"ANTHROPIC_BASE_URL":$base}')
         ;;
     *)
-        cat > "$_CLAUDE_SETTINGS" <<'EOF'
-{
-  "env": {}
-}
-EOF
+        new_env='{}'
         ;;
     esac
+
+    if [[ -f "$_CLAUDE_SETTINGS" ]]; then
+        jq --argjson e "$new_env" '.env = $e' "$_CLAUDE_SETTINGS" \
+            > "${_CLAUDE_SETTINGS}.tmp" \
+            && mv "${_CLAUDE_SETTINGS}.tmp" "$_CLAUDE_SETTINGS"
+    else
+        jq -n --argjson e "$new_env" '{"env": $e}' > "$_CLAUDE_SETTINGS"
+    fi
 }
 
 use-foundry() {

@@ -118,9 +118,6 @@ ENV NODE_PATH=/usr/local/lib/node_modules \
     GLOBAL_AGENT_HTTP_PROXY=http://firewall:3128 \
     NODE_OPTIONS=-r\ /usr/local/lib/global-agent-bootstrap.js
 
-RUN echo 'export HISTFILE=/commandhistory/.zsh_history' >> ~/.zshrc && \
-    echo 'export HISTSIZE=10000 SAVEHIST=10000' >> ~/.zshrc && \
-    echo 'setopt SHARE_HISTORY' >> ~/.zshrc && \
-    echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.zshrc
+COPY --chown=devuser:devuser .zshrc /home/devuser/.zshrc
 
 CMD ["sleep", "infinity"]
