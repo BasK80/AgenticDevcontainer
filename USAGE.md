@@ -1,12 +1,23 @@
-# Tester Quick Start (≈ 15 min setup)
+# Quick Start (≈ 15 min setup)
 
-You'll get from your contact:
+## Choosing your LLM provider
 
-- A **repo link** (git URL or zip).
-- An **API base URL** (e.g. `https://your-gateway.example.com`).
+The dev container supports three ways to run Claude. Pick one before you start:
+
+| Provider | What you need | Setup details |
+|---|---|---|
+| **Anthropic API key** (direct or via a custom gateway) | An API key (`sk-ant-...`) and optionally a custom `ANTHROPIC_BASE_URL` | Steps 1–5 below |
+| **Azure AI Foundry** | Access to an Azure AI Foundry resource | Steps 1–2 and 4, then see [README — Azure AI Foundry overlay](README.md#azure-ai-foundry-overlay) |
+| **Claude subscription (OAuth)** | A Claude.ai subscription | Steps 1–2 and 4, then run `use-anthropic` inside the container |
+
+> **Steps 3 and the firewall-hostname section of step 5 only apply to the Anthropic API key path.** If you are using Azure Foundry or the OAuth subscription flow, skip those parts and follow the README instead.
+
+For the **Anthropic API key** path, you will also need:
+
 - An **API key** (looks like `sk-ant-...`).
+- Optionally, a custom **API base URL** (e.g. `https://your-gateway.example.com`) if you route through a gateway.
 
-The dev container blocks all outbound traffic by default and only allows a small list of hostnames. Your gateway hostname must be added to that allowlist — step 4 below.
+The dev container blocks all outbound traffic by default and only allows a small list of hostnames. If you use a custom gateway hostname, it must be added to the allowlist — step 5 below.
 
 ---
 
@@ -40,24 +51,36 @@ The dev container blocks all outbound traffic by default and only allows a small
 
 ## 2. Get the code
 
-Open a shell — **Terminal** on macOS, or your **Ubuntu (WSL)** shell on Windows — and clone:
+**On Windows, the project must live inside the WSL file system, not under `/mnt/c/` or any other Windows-mounted drive.** Docker Desktop and Rancher Desktop have severe I/O performance issues and occasional bind-mount failures when the source tree is on a Windows path. Use a directory under your WSL home instead, e.g. `~/projects/`.
+
+Open your **Ubuntu (WSL)** shell (on macOS, open **Terminal**) and unzip or clone into WSL:
 
 ```bash
-git clone <REPO_URL_FROM_YOUR_CONTACT> agentic-devcontainer
+# Option A — clone from git
+cd ~
+mkdir -p projects && cd projects
+git clone <REPO_URL> agentic-devcontainer
+cd agentic-devcontainer
+
+# Option B — zip file
+# Copy the zip into WSL first (from PowerShell or Explorer → \\wsl.localhost\Ubuntu\home\<you>\)
+cd ~
+mkdir -p projects && cd projects
+unzip /path/to/agentic-devcontainer.zip
 cd agentic-devcontainer
 ```
 
-(If you got a zip, unzip it and `cd` into the folder instead.)
+> **Do not place the folder under `/mnt/c/`, `/mnt/d/`, or any Windows-mounted path.** If you accidentally unzipped there, move it: `mv /mnt/c/Users/you/Downloads/agentic-devcontainer ~/projects/`
 
 ---
 
-## 3. Export the API key and base URL on the host
+## 3. Export the API key _(API key path only — skip if using Foundry or OAuth)_
 
 In the **same shell** you'll use to launch VS Code:
 
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."           # the key your contact gave you
-export ANTHROPIC_BASE_URL="https://your-gateway.example.com"   # the URL your contact gave you
+export ANTHROPIC_API_KEY="sk-ant-..."                          # your Anthropic API key
+export ANTHROPIC_BASE_URL="https://your-gateway.example.com"   # only needed for a custom gateway
 ```
 
 Then launch VS Code from that same shell so it inherits the variables:
@@ -67,6 +90,8 @@ code .
 ```
 
 > **Why from the shell?** Setting them in `.bashrc`/`.zshrc` also works, but you must then fully quit and reopen VS Code so it picks them up.
+
+For persistent key storage or alternative setup methods (including Windows PowerShell), see [README — Anthropic API key](README.md#anthropic-api-key-default-provider).
 
 ---
 
@@ -87,11 +112,25 @@ When the bottom-left of VS Code shows `Dev Container: claude-agentic-devcontaine
 Open a terminal in VS Code (`` Ctrl+` ``) — this terminal is **inside** the container. Then:
 
 ```bash
-claude-mode      # should print: Anthropic API key (base: https://your-gateway.example.com)
+claude-mode      # prints the active provider
 claude           # starts Claude Code
 ```
 
-If `claude-mode` shows the wrong provider, run `use-anthropic-key` once and try again.
+If the wrong provider is active, switch it with one of:
+
+```bash
+use-anthropic-key   # Anthropic API key (requires ANTHROPIC_API_KEY in the container env)
+use-foundry         # Azure AI Foundry (requires az login first — see README)
+use-anthropic       # Claude subscription / OAuth login flow
+```
+
+For **Foundry**: after switching, run `az login` before starting `claude`. Azure tokens expire after ~1 hour of inactivity; re-run `az login` if you see auth errors.
+
+**Custom gateway only:** if your `ANTHROPIC_BASE_URL` points to a hostname not already in the allowlist, add it from your host shell before starting:
+
+```bash
+./tools/fw allow your-gateway.example.com
+```
 
 That's it — try a prompt like `list the files in this repo`.
 
@@ -99,7 +138,7 @@ That's it — try a prompt like `list the files in this repo`.
 
 ## Troubleshooting
 
-**"403" or "connection refused" when Claude tries to call the API**
+**"403" or "connection refused" when Claude tries to call the API** _(API key / custom gateway path)_
 The gateway hostname isn't in the firewall allowlist. From your **host** shell (not inside the container), in the repo root:
 
 ```bash
@@ -108,13 +147,16 @@ The gateway hostname isn't in the firewall allowlist. From your **host** shell (
 ./tools/fw list                              # confirm it's there
 ```
 
-**`claude-mode` says `unset` or shows Foundry / OAuth**
+**`claude-mode` shows the wrong provider** _(API key path)_
 Inside the container:
 ```bash
 echo "${ANTHROPIC_API_KEY:0:10}..."    # should print sk-ant-...
 use-anthropic-key                       # rewrite the settings file
 ```
 If `ANTHROPIC_API_KEY` is empty inside the container, the host shell that launched VS Code didn't have it exported. Quit VS Code, redo step 3, and reopen.
+
+**Azure auth errors or `az login` hangs** _(Foundry path)_
+See [README — Azure AI Foundry overlay](README.md#azure-ai-foundry-overlay) for the full authentication flow and debug steps.
 
 **Windows: `code .` doesn't open / opens the wrong VS Code**
 You're probably running it from PowerShell instead of WSL. Always launch from your **Ubuntu (WSL)** shell so VS Code uses the WSL-side files and Docker socket.
