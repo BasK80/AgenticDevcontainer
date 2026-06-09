@@ -8,9 +8,9 @@ CTRL="claude-${PROJECT}-control"
 case "${1:-}" in
   allow)  shift; docker exec "$CTRL" allow "$@" ;;
   deny)   shift; docker exec "$CTRL" deny  "$@" ;;
-  blocks) docker exec "$CTRL" sh -c 'tail -n 30 /var/log/squid/access.log' ;;
-  list)   docker exec "$CTRL" sh -c 'cat /policy/allowlist.acl' ;;
-  log)    docker exec "$CTRL" sh -c 'tail -f /var/log/squid/access.log' ;;
-  *) echo "usage: ./fw allow <domain> [ttl_seconds] | ./fw deny <domain> | ./fw blocks | ./fw list | ./fw log"
-     echo "       (override project name with: PROJECT=<name> ./fw ...)" ;;
+  blocks) docker exec "$CTRL" show_blocks ;;
+  list)   docker exec "$CTRL" list_allows ;;
+  log)    docker exec -it "$CTRL" tail_firewall ;;
+  *) echo "usage: ./tools/fw allow <domain> [ttl_seconds] | ./tools/fw deny <domain> | ./tools/fw blocks | ./tools/fw list | ./tools/fw log"
+     echo "       (override project name with: PROJECT=<name> ./tools/fw ...)" ;;
 esac

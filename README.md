@@ -56,12 +56,12 @@ Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain li
 ### `.devcontainer/control/`
 `allow.sh` and `deny.sh` — modify the permanent or TTL allowlist on the shared `policy` volume.
 
-### `fw` (repo root)
-Host-side helper: `./fw allow|deny|list|blocks|log`. Auto-detects the project name from the current directory. Run on the host, not inside the dev container.
+### `tools/fw`
+Host-side helper: `./tools/fw allow|deny|list|blocks|log`. Auto-detects the project name from the current directory. Run on the host, not inside the dev container.
 
 ## How to use
 
-1. Drop `.devcontainer/` and `fw` into your project root.
+1. Drop `.devcontainer/` and `tools/` into your project root.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds.
 4. Open a terminal in the `development` container and run `claude`.
@@ -69,12 +69,12 @@ Host-side helper: `./fw allow|deny|list|blocks|log`. Auto-detects the project na
 ### Manage the allowlist from the host
 
 ```bash
-./fw allow pypi.org                  # permanent allow
-./fw allow files.pythonhosted.org 60 # temporary allow, 60s TTL
-./fw deny  pypi.org                  # remove an allow (re-block); perm + temp
-./fw list                            # show the live, compiled allowlist
-./fw blocks                          # recent blocked requests
-./fw log                             # follow the access log
+./tools/fw allow pypi.org                  # permanent allow
+./tools/fw allow files.pythonhosted.org 60 # temporary allow, 60s TTL
+./tools/fw deny  pypi.org                  # remove an allow (re-block); perm + temp
+./tools/fw list                            # show the live, compiled allowlist
+./tools/fw blocks                          # recent blocked requests
+./tools/fw log                             # follow the access log
 ```
 
 Changes take effect within ~5s (the firewall watcher reloads Squid). Run these on the **host**, not inside the dev container — `development` is deliberately unable to reach the management plane.
@@ -87,7 +87,7 @@ Changes take effect within ~5s (the firewall watcher reloads Squid). Run these o
 
 When `ANTHROPIC_API_KEY` is exported on the host at the time you open the container, the dev container picks `use-anthropic-key` as the default provider on first create. The key (and an optional `ANTHROPIC_BASE_URL`) is passed in via `initializeCommand` → `.devcontainer/.env` → the `development` service `environment` block in [docker-compose.yml](.devcontainer/docker-compose.yml). `.env` is gitignored, but the key is still readable by anything that can run `docker inspect` on the container — do not use a key you wouldn't put on disk.
 
-The firewall already allows `api.anthropic.com`. If you point `ANTHROPIC_BASE_URL` at a custom host (proxy, gateway), add it to the allowlist: `./fw allow your-gateway.example.com`.
+The firewall already allows `api.anthropic.com`. If you point `ANTHROPIC_BASE_URL` at a custom host (proxy, gateway), add it to the allowlist: `./tools/fw allow your-gateway.example.com`.
 
 ### Set the key on the host
 
@@ -165,7 +165,7 @@ Two ways to add:
 
 ```bash
 # Temporary/iterating — applies within ~5s, no rebuild needed:
-./fw allow YOUR-RESOURCE.services.ai.azure.com
+./tools/fw allow YOUR-RESOURCE.services.ai.azure.com
 
 # Permanent baseline — edit and rebuild the firewall image:
 #   1. add the line to .devcontainer/firewall/allowlist.default
@@ -280,7 +280,7 @@ tmux attach -t agents
 
 **macOS bind mount performance.** `node_modules`, `.venv`, and similar high-IOPS paths are on named volumes in this config. If you add new high-write paths, follow the same pattern.
 
-**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. Edit the baked default in `.devcontainer/firewall/allowlist.default` and rebuild the firewall image to change the seed; use `./fw allow|deny` for live edits.
+**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. Edit the baked default in `.devcontainer/firewall/allowlist.default` and rebuild the firewall image to change the seed; use `./tools/fw allow|deny` for live edits.
 
 ## Debugging blocked traffic
 
@@ -289,11 +289,11 @@ tmux attach -t agents
 curl -s http://firewall:8099 | tail -30
 
 # From the host:
-./fw blocks                          # last 30 access log lines
-./fw log                             # live tail
-./fw list                            # current compiled allowlist
-./fw allow <hostname>                # add the missing destination
-./fw allow <hostname> 300            # 5-minute temporary allow while debugging
+./tools/fw blocks                          # last 30 access log lines
+./tools/fw log                             # live tail
+./tools/fw list                            # current compiled allowlist
+./tools/fw allow <hostname>                # add the missing destination
+./tools/fw allow <hostname> 300            # 5-minute temporary allow while debugging
 ```
 
 ## Cleanup

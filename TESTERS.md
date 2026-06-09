@@ -103,9 +103,9 @@ That's it — try a prompt like `list the files in this repo`.
 The gateway hostname isn't in the firewall allowlist. From your **host** shell (not inside the container), in the repo root:
 
 ```bash
-./fw blocks                            # see what got blocked
-./fw allow <hostname>                  # add it; takes effect within ~5 seconds
-./fw list                              # confirm it's there
+./tools/fw blocks                            # see what got blocked
+./tools/fw allow <hostname>                  # add it; takes effect within ~5 seconds
+./tools/fw list                              # confirm it's there
 ```
 
 **`claude-mode` says `unset` or shows Foundry / OAuth**
