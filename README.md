@@ -54,7 +54,12 @@ Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode` sh
 Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s and after `allow`/`deny`), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`).
 
 ### `.devcontainer/control/`
-`allow.sh` and `deny.sh` — modify the permanent or TTL allowlist on the shared `policy` volume.
+Out-of-band management plane, unreachable from `development`. Holds the policy volume and the scripts the host-side [`tools/fw`](tools/fw) wrapper invokes:
+- `allow.sh` — append a domain to the permanent allowlist, or to the TTL list with an auto-expiring lease.
+- `deny.sh` — remove a domain from the permanent and TTL allowlists (exact match; wildcard parents must be removed directly).
+- `list_allows.sh` — print the live compiled allowlist (`/policy/allowlist.acl`).
+- `show_blocks.sh` — print the last 30 lines of the Squid access log.
+- `tail_firewall.sh` — follow the Squid access log live.
 
 ### `tools/fw`
 Host-side helper: `./tools/fw allow|deny|list|blocks|log`. Auto-detects the project name from the current directory. Run on the host, not inside the dev container.
