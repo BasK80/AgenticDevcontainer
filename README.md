@@ -50,6 +50,8 @@ Runs once after first container creation. Generic hook for project setup (depend
 ### `.devcontainer/development/llm-switch.sh`
 Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `llm-mode` shell commands for switching the active LLM provider. Each command configures both Claude Code (`~/.claude/settings.json`) and opencode (`~/.config/opencode/opencode.json`) so both tools stay in sync. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
 
+The chosen provider is recorded in `~/.llm-provider` and re-applied automatically in new terminals and after rebuilds (`post-start.sh`), so a deliberate switch sticks even though the container keeps `ANTHROPIC_API_KEY` in the environment. For OAuth that means the leaked key is actively unset in each new shell. **Note:** Claude Code builds the `/model` list once at startup from the active provider — restart `claude` after switching to refresh the available models (e.g. the larger set offered by the OAuth subscription).
+
 ### `.devcontainer/firewall/`
 Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
 

@@ -135,6 +135,10 @@ use-foundry         # Azure AI Foundry (requires az login first — see README)
 use-anthropic       # Claude subscription / OAuth login flow
 ```
 
+> **Restart `claude` after switching.** The `/model` picker is built once, when `claude` starts, from the active provider — it does **not** refresh inside a running session. After a `use-*` switch, exit (`/exit` or Ctrl+C) and relaunch `claude` so it re-derives the available models (e.g. the larger set offered by the OAuth subscription).
+
+> **Your choice persists.** Each `use-*` command records the provider in `~/.llm-provider`. New terminals and container rebuilds re-apply it automatically — so an OAuth switch sticks even though the container keeps `ANTHROPIC_API_KEY` in the environment. Already-open shells won't pick up the change until reopened.
+
 For **Foundry**: after switching, run `az login` before starting `claude`. Azure tokens expire after ~1 hour of inactivity; re-run `az login` if you see auth errors.
 
 **Custom gateway only:** if your `ANTHROPIC_BASE_URL` points to a hostname not already in the allowlist, add it from your host shell before starting:
