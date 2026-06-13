@@ -5,8 +5,10 @@ This document is a braindump of ideas for improvements that I get when using thi
 ### Clean up the post-create & post-install logic for the development container
 The current post-create.sh, post-install.sh and devcontainer.json have overlaping logic that was organically created to fix certain issues during development of this container. This needs some TLC to make this much more consistent and streamlined.
 
-### Remove the logic of the 'fw' tool
-Remove the fw tool, it's logic is already better provided by the web ui in the control container. Make the logic provided by the fw tool more easily available on the firewall container itself and update the description in the README on how to work without the control container to use this new tooling in the firewall container. 
+### ~~Remove the logic of the 'fw' tool~~ ✅ Done
+~~Remove the fw tool, it's logic is already better provided by the web ui in the control container. Make the logic provided by the fw tool more easily available on the firewall container itself and update the description in the README on how to work without the control container to use this new tooling in the firewall container.~~
+
+`tools/fw` has been removed. A native `fw` script now lives directly on the firewall container (`/usr/local/bin/fw`) and supports `allow`, `deny`, `list`, `blocks`, and `log`. README and USAGE both document `docker exec "$FW" fw <command>` as the management interface.
 
 ## Usability
 ### More fine-grained .devcontainer mount

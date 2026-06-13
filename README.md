@@ -54,7 +54,7 @@ Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode` sh
 Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
 
 ### `.devcontainer/control/`
-Out-of-band management plane, unreachable from `development`. Holds the policy volume and the same management scripts as the firewall container (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`) — called by the web dashboard.
+Out-of-band management plane, unreachable from `development`. Holds the policy volume and the management scripts called by the web dashboard (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`). These scripts write to the same shared `policy` volume as the firewall container's `fw` script, so the dashboard and the CLI are always in sync.
 
 ## How to use
 
@@ -89,7 +89,7 @@ A single-page dashboard is served by the `control` container at **<http://127.0.
 | **Allowlist** | Permanent and temporary entries. Each row has a **Remove** button. Temporary entries show a live countdown. |
 | **Recently Blocked** | Domains with at least one denied request, grouped by host and sorted by recency. One-click **Permanent** / **5m** / **15m** / **1h** and **Custom…** allow buttons per row. |
 
-Every mutation calls the same `allow.sh` / `deny.sh` scripts as `docker exec "$FW" fw`, so the CLI and the dashboard are always in sync.
+Every mutation from the dashboard writes to the same shared `policy` volume that the `fw` script modifies directly, so the CLI and the dashboard are always in sync.
 
 ### See blocks from inside the dev container
 - Each blocked request shows up as a `403` proxy error in your tools.

@@ -36,40 +36,25 @@ Phase 5 — Security validation (do last)
 
 ## Phase 1 — Maintainability
 
-### Step 1.1 — Remove the `fw` tool
+### ~~Step 1.1 — Remove the `fw` tool~~ ✅ Completed (commit `9c66734`)
 
 **Problem.** The `tools/fw` script duplicates functionality already provided —
 and better — by the web UI in the control container.  Maintaining two management
 interfaces for the firewall creates inconsistency and unnecessary maintenance
 overhead.
 
-**Goal.** Remove `tools/fw` entirely.  Expose equivalent management commands
-natively on the firewall container so users without the control container web UI
-can still manage the allowlist.  Update the README to document this workflow.
+**What was done.**
+- `tools/fw` deleted from the repository.
+- A native `fw` script added to the firewall container image at
+  `/usr/local/bin/fw`.  It supports `allow [ttl]`, `deny`, `list`, `blocks`,
+  and `log` — the same surface as the old host-side wrapper.
+- README updated: "Manage the allowlist from the host" and "Managing the
+  firewall without the control container" sections both use
+  `docker exec "$FW" fw <command>`.
+- USAGE.md troubleshooting updated to match.
 
-**Approach.**
-1. Inventory every `fw` subcommand (`allow`, `list`, `log`, etc.) and map each
-   to a direct equivalent inside the firewall container (e.g. direct allowlist
-   file manipulation, `squid -k reconfigure`, log reads).
-2. Add thin wrapper scripts to the firewall container image (or expose the
-   equivalents as documented one-liners).
-3. Delete `tools/fw` from the repository.
-4. Update all documentation that references `./tools/fw`.
-
-**Files to change.**
-
-| File | Change |
-|------|--------|
-| `tools/fw` | **Delete** the file |
-| `.devcontainer/firewall/` | Add wrapper scripts (or documented shell aliases) equivalent to `fw allow`, `fw list`, `fw log` |
-| `README.md` | Replace all `./tools/fw` references; add a "Managing the firewall without the control container" section |
-| `USAGE.md` | Update any `fw` references |
-
-**Verification.** After the change:
-- `ls tools/` no longer shows `fw`.
-- The equivalent firewall-container commands work correctly.
-- The control web UI (`http://127.0.0.1:8088`) continues to function normally.
-- `README.md` contains no remaining `./tools/fw` references.
+**Verified:** a host-side test script exercised all subcommands (permanent
+allow/deny, TTL allow with expiry, error handling) and all tests passed.
 
 ---
 
@@ -876,7 +861,7 @@ security configuration.  All items in the pass criteria should be green.
 
 | Order | Step | Depends on |
 |-------|------|------------|
-| 1 | 1.1 — Remove fw tool | — |
+| 1 | ~~1.1 — Remove fw tool~~ ✅ Done | — |
 | 2 | 1.2 — Clean up lifecycle scripts | — |
 | 3 | 4.1 — Better boot experience | — |
 | 4 | 4.2 — Add default Linux tools | — |
