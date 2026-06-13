@@ -5,8 +5,8 @@
 #   docker exec      "$FW" fw deny  <domain>
 #   docker exec      "$FW" fw list
 #   docker exec      "$FW" fw blocks
-#   docker exec     "$FW" fw <command>
-  docker exec -it  "$FW" fw log
+#   docker exec      "$FW" fw <command>
+#   docker exec -it  "$FW" fw log
 set -euo pipefail
 
 PERM=/policy/allowlist.acl.perm
@@ -53,7 +53,7 @@ case "${1:-}" in
     echo ""
     echo "run from the host as:"
     echo "  FW=\"claude-\$(basename \"\$PWD\")-firewall\""
-    echo "  docker exec     "$FW" fw <command>
-  docker exec -it \"\$FW\" fw log"
+    echo "  docker exec      \"\$FW\" fw <command>"
+    echo "  docker exec -it  \"\$FW\" fw log"
     ;;
 esac

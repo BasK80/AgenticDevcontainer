@@ -18,7 +18,7 @@
   "postCreateCommand": "bash .devcontainer/development/post-create.sh",
 
   // Runs on every container start (including after rebuilds).
-  "postStartCommand": "bash .devcontainer/development/post-start.sh && if [ \"${CLAUDE_CODE_USE_FOUNDRY:-0}\" = \"1\" ]; then az config set core.login_experience_v2=on >/dev/null 2>&1 || true; fi",
+  "postStartCommand": "bash .devcontainer/development/post-start.sh",
 
   "customizations": {
     "vscode": {

@@ -58,44 +58,15 @@ allow/deny, TTL allow with expiry, error handling) and all tests passed.
 
 ---
 
-### Step 1.2 — Clean up post-create / post-start / devcontainer.json
+### ~~Step 1.2 — Clean up post-create / post-start / devcontainer.json~~ ✅ Completed
 
-**Problem.** The `~/.claude.json` symlink logic is nearly identical in both
-`post-create.sh` and `post-start.sh`.  The `az config set` call exists in both
-`post-create.sh` (line 64–66) and inline in the `devcontainer.json`
-`postStartCommand`.  This makes the boot sequence hard to reason about.
+**What was done.**
+- `post-create.sh`: removed the duplicated `~/.claude.json` symlink block (lines 69–85) and the `az config set` block (lines 63–67). Post-create now owns only one-time setup.
+- `post-start.sh`: added the Foundry-guarded `az config set core.login_experience_v2=on` block. Post-start now owns all every-start setup.
+- `devcontainer.json`: `postStartCommand` simplified to `"bash .devcontainer/development/post-start.sh"` — no inline logic.
+- `fw` script: fixed a bug where line 9 was missing its `#` comment prefix (ran `docker exec` as live code before `set -euo pipefail`); fixed broken shell quoting in the `*)` usage message.
 
-**Goal.** Each lifecycle hook has a single, clearly defined responsibility with
-no duplicated logic.
-
-**Responsibilities after the cleanup.**
-
-| Script | Responsibility |
-|--------|---------------|
-| `post-create.sh` | One-time setup: select Claude provider, write `settings.json`, add `/workspace` to `allowedPaths`, source `llm-switch.sh` into `.zshrc`. |
-| `post-start.sh` | Every-start setup: restore `~/.claude.json` symlink, ensure Azure CLI browser-login flag if Foundry mode is active. |
-| `devcontainer.json` `postStartCommand` | Delegate entirely to `post-start.sh` — no inline logic. |
-
-**Files to change.**
-
-| File | Change |
-|------|--------|
-| `post-create.sh` | **Remove** the entire `~/.claude.json` symlink block (lines 69–85). It is already covered by `post-start.sh`. |
-| `post-create.sh` | **Remove** the `az config set` block (lines 64–66) — `post-start.sh` will own this. |
-| `post-start.sh` | **Add** the `az config set core.login_experience_v2=on` block (guard it with `if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]`). |
-| `devcontainer.json` | Change `postStartCommand` to `"bash .devcontainer/development/post-start.sh"` — remove the inline `&& if [ ... ] az config ...` suffix. |
-
-**Container constraints.** The `.devcontainer/development/` scripts are mounted
-read-only inside the container, so all edits in this step must be made on the
-host.  After Step 2.1 is complete these files become writable from inside the
-container.  A full rebuild is not needed to test the changes — a container
-restart is sufficient.
-
-**Verification.**
-- `~/.claude.json` is a symlink to `~/.claude/.claude.json`.
-- `claude-mode` reports the expected provider.
-- `/workspace` is in `allowedPaths` (`jq .allowedPaths ~/.claude/settings.json`).
-- If `CLAUDE_CODE_USE_FOUNDRY=1`, `az account show` succeeds after login.
+**Applied via:** `apply-step-1.2.sh` — a host-side script that writes the new file content and verifies the result with `docker exec`.
 
 ---
 
@@ -862,7 +833,7 @@ security configuration.  All items in the pass criteria should be green.
 | Order | Step | Depends on |
 |-------|------|------------|
 | 1 | ~~1.1 — Remove fw tool~~ ✅ Done | — |
-| 2 | 1.2 — Clean up lifecycle scripts | — |
+| 2 | ~~1.2 — Clean up lifecycle scripts~~ ✅ Done | — |
 | 3 | 4.1 — Better boot experience | — |
 | 4 | 4.2 — Add default Linux tools | — |
 | 5 | 4.3 — Skill / tool guide | — |

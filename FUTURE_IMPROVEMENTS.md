@@ -2,8 +2,15 @@
 This document is a braindump of ideas for improvements that I get when using this container or get as feedback from other users. I've roughly sorted the ideas into maintainability, usability and security improvements.
 
 ## Maintainability
-### Clean up the post-create & post-install logic for the development container
-The current post-create.sh, post-install.sh and devcontainer.json have overlaping logic that was organically created to fix certain issues during development of this container. This needs some TLC to make this much more consistent and streamlined.
+### ~~Clean up the post-create & post-install logic for the development container~~ ✅ Done
+~~The current post-create.sh, post-install.sh and devcontainer.json have overlaping logic that was organically created to fix certain issues during development of this container. This needs some TLC to make this much more consistent and streamlined.~~
+
+Each lifecycle hook now has a single, clearly defined responsibility:
+- `post-create.sh` — one-time setup only: provider selection, `settings.json`, `allowedPaths`, `.zshrc` registration.
+- `post-start.sh` — every-start setup: `~/.claude.json` symlink and Azure CLI browser-login flag (for Foundry).
+- `devcontainer.json` `postStartCommand` — delegates entirely to `post-start.sh` with no inline logic.
+
+Also fixed a bug in the `fw` script: line 9 was missing its `#` comment prefix (running `docker exec` as live code before `set -euo pipefail`), and the usage message had broken shell quoting.
 
 ### ~~Remove the logic of the 'fw' tool~~ ✅ Done
 ~~Remove the fw tool, it's logic is already better provided by the web ui in the control container. Make the logic provided by the fw tool more easily available on the firewall container itself and update the description in the README on how to work without the control container to use this new tooling in the firewall container.~~

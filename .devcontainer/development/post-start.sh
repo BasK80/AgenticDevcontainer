@@ -39,4 +39,13 @@ elif [ ! -e "$CLAUDE_JSON" ]; then
 fi
 # else: already a symlink — nothing to do.
 
+# ── Azure CLI browser login flow ──────────────────────────────────────────
+# Ensure the browser callback login flow is active when Foundry is enabled.
+# post-create.sh used to own this; post-start.sh runs on every start so it
+# is the correct owner (az config is not persisted across rebuilds).
+if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
+    az config set core.login_experience_v2=on 2>/dev/null || true
+    echo "[setup] Azure CLI browser login flow enabled for Foundry"
+fi
+
 echo "[post-start] done."
