@@ -12,7 +12,9 @@
 #                                the model name
 #   use-anthropic      route Claude through the Anthropic OAuth login flow
 #                      (Claude subscription)
-#                      opencode: ⚠️  run 'opencode providers login' separately
+#                      opencode: clears the pinned API key from its config so
+#                                OAuth wins — first time only, run
+#                                'opencode auth login' → Anthropic → Claude Pro/Max
 #   llm-mode           show the currently active Claude provider
 #
 # opencode reads its provider config from ~/.config/opencode/opencode.json.
@@ -182,7 +184,12 @@ use-anthropic() {
     _llm_persist anthropic
     echo "[claude] provider: Anthropic OAuth (Claude subscription)"
     echo "[claude] restart 'claude' to refresh the /model list for this provider"
-    echo "[opencode] uses its own auth — run: opencode providers login"
+    # Clear opencode's pinned anthropic apiKey/baseURL — otherwise it takes
+    # precedence over the OAuth credential in auth.json and opencode would
+    # keep using the API key instead of the subscription login.
+    _opencode_write_config clear
+    echo "[opencode] cleared pinned API key — uses its own auth"
+    echo "[opencode] first-time auth: run 'opencode auth login' → Anthropic → Claude Pro/Max"
     # Only auto-launch the interactive login when running in a TTY; in
     # non-interactive contexts (e.g. devcontainer postCreateCommand, or the
     # silent re-apply on new shells where _LLM_NO_LOGIN is set) it would
