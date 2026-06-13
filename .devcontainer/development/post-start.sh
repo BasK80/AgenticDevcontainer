@@ -48,4 +48,16 @@ if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
     echo "[setup] Azure CLI browser login flow enabled for Foundry"
 fi
 
+
+# ── Refresh API key settings on every start ──────────────────────────────
+# post-create.sh only runs on first creation; if settings.json is wiped
+# (full rebuild with volume removal), this ensures the key is restored
+# automatically as long as ANTHROPIC_API_KEY is set on the host.
+if [[ -n "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" != "1" ]]; then
+    # shellcheck disable=SC1090
+    source /workspace/.devcontainer/development/llm-switch.sh
+    use-anthropic-key >/dev/null
+    echo "[setup] Refreshed provider: Anthropic API key"
+fi
+
 echo "[post-start] done."

@@ -110,6 +110,9 @@ WORKDIR /workspace
 # Claude Code goes into devuser's prefix so it can be updated without root.
 RUN npm install -g @anthropic-ai/claude-code
 
+# opencode — alternative agentic coding framework.
+RUN npm install -g opencode-ai
+
 # NODE_PATH points at the system-wide npm root so any Node binary — including
 # VS Code Server's bundled node — can resolve `global-agent` when the shim
 # preloads it. Set AFTER all build-time `npm`/`node` invocations so the

@@ -154,12 +154,16 @@ live write-permission tests):
 *Steps 3.1 and 3.2 additionally benefit from Step 2.1 (writable development/ dir).*
 *Step 3.3 depends on Step 3.2 for `GITHUB_TOKEN` plumbing.*
 
-### Step 3.1 — Support for opencode
+### ~~Step 3.1 — Support for opencode~~ ✅ Completed
 
-**Goal.** Install `opencode` in the development image so users can use it as an
-alternative agentic coding framework.  `llm-switch.sh` should configure the
-environment for opencode where possible, and clearly state when a backend is
-incompatible with it.
+**What was done.**
+- `Dockerfile`: added `RUN npm install -g opencode-ai` after the Claude Code install — opencode is now baked into the image (via `apply-step-3.1.sh` on the host).
+- `post-create.sh`: updated the boot banner to list both `claude` and `opencode` as available AI tools (via `apply-step-3.1.sh` on the host).
+- `llm-switch.sh` (already completed prior to this step): all three `use-*` functions write both `~/.claude/settings.json` (Claude Code) and `~/.config/opencode/opencode.json` (opencode) so the two tools stay in sync on every provider switch.
+- `README.md`: updated Dockerfile description to mention opencode; updated `llm-switch.sh` description to explain the dual-config behaviour; updated step 4 of "How to use" to list both tools.
+- `USAGE.md`: updated step 5 to document `opencode` as an alternative to `claude`, with a note that `use-*` commands configure both tools simultaneously.
+
+**Rebuild required.** Run `apply-step-3.1.sh` on the host, then rebuild the development image.
 
 **Files to change.**
 
@@ -848,7 +852,7 @@ security configuration.  All items in the pass criteria should be green.
 | 5 | 4.3 — Skill / tool guide | — |
 | 6 | 4.4 — Firewall-aware AI tools | — |
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
-| 8 | 3.1 — opencode support | 1.2, 2.1 |
+| 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
 | 9 | 3.2 — GitHub Copilot SDK | 3.1 |
 | 10 | 3.3 — Copilot CLI support | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |

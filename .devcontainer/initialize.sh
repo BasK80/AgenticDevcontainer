@@ -13,6 +13,12 @@ cd "$(dirname "$0")"
 
 PROJECT="$(basename "$(cd .. && pwd)")"
 
+# Load secrets stored by setup-host-secrets.sh (survives rebuilds, never committed). # devcontainer-secrets
+if [[ -f "$HOME/.devcontainer-secrets" ]]; then
+    # shellcheck disable=SC1090
+    source "$HOME/.devcontainer-secrets"
+fi
+
 emit_if_set() {
     local name="$1"
     local val="$2"

@@ -42,13 +42,13 @@ Defines the three services and two networks:
 - `control` — hosts `allow`/`deny`; on `egress` only, not reachable from `development`.
 
 ### `.devcontainer/development/Dockerfile`
-Image for the dev container. Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
+Image for the dev container. Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
 
 ### `.devcontainer/development/post-create.sh`
-Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `claude-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
+Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `llm-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
 
-### `.devcontainer/development/claude-switch.sh`
-Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode` shell commands for switching the Claude provider in-place. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
+### `.devcontainer/development/llm-switch.sh`
+Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `llm-mode` shell commands for switching the active LLM provider. Each command configures both Claude Code (`~/.claude/settings.json`) and opencode (`~/.config/opencode/opencode.json`) so both tools stay in sync. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
 
 ### `.devcontainer/firewall/`
 Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
@@ -61,7 +61,7 @@ Out-of-band management plane, unreachable from `development`. Holds the policy v
 1. Drop `.devcontainer/` into your project root.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds.
-4. Open a terminal in the `development` container and run `claude`.
+4. Open a terminal in the `development` container and run `claude` (Claude Code) or `opencode`.
 
 ### Manage the allowlist from the host
 
@@ -140,7 +140,7 @@ echo "${ANTHROPIC_API_KEY:0:10}..."
 Verify inside the container after rebuild:
 
 ```bash
-claude-mode                                  # should print: Anthropic API key (base: ...)
+llm-mode                                     # should print: Anthropic API key (base: ...)
 echo "${ANTHROPIC_API_KEY:0:10}..."          # should print the prefix
 grep ANTHROPIC_API_KEY ~/.claude/settings.json
 ```
@@ -187,9 +187,9 @@ docker exec "$FW" fw allow YOUR-RESOURCE.services.ai.azure.com
 
 Note: Squid's `dstdomain` ACL matches by hostname (not IP), so CDN/Azure IP rotation never breaks the allowlist. Wildcard entries (e.g. `.core.windows.net`) match all subdomains.
 
-### 2. claude-switch.sh - verify Foundry defaults
+### 2. llm-switch.sh - verify Foundry defaults
 
-Provider routing now lives in the in-shell switcher [`.devcontainer/development/claude-switch.sh`](.devcontainer/development/claude-switch.sh), not in `devcontainer.json`. Update the defaults near the top:
+Provider routing now lives in the in-shell switcher [`.devcontainer/development/llm-switch.sh`](.devcontainer/development/llm-switch.sh), not in `devcontainer.json`. Update the defaults near the top:
 
 ```bash
 : "${ANTHROPIC_FOUNDRY_RESOURCE:=YOUR-RESOURCE-NAME}"

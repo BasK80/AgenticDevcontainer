@@ -23,13 +23,13 @@ set -euo pipefail
 # fi
 
 # ── Claude provider switcher ──────────────────────────────────────────────
-# Install `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode`
+# Install `use-anthropic-key` / `use-foundry` / `use-anthropic` / `llm-mode`
 # shell commands.
-SWITCH_SRC="/workspace/.devcontainer/development/claude-switch.sh"
+SWITCH_SRC="/workspace/.devcontainer/development/llm-switch.sh"
 ZSHRC="$HOME/.zshrc"
-if [[ -f "$SWITCH_SRC" ]] && ! grep -q "claude-switch.sh" "$ZSHRC" 2>/dev/null; then
+if [[ -f "$SWITCH_SRC" ]] && ! grep -q "llm-switch.sh" "$ZSHRC" 2>/dev/null; then
     echo "[ -f $SWITCH_SRC ] && source $SWITCH_SRC" >> "$ZSHRC"
-    echo "[setup] Registered claude-switch.sh in ~/.zshrc"
+    echo "[setup] Registered llm-switch.sh in ~/.zshrc"
 fi
 
 # Pick a default provider on first creation:
@@ -62,11 +62,13 @@ echo "[setup] /workspace added to Claude allowedPaths"
 
 echo ""
 echo "┌──────────────────────────────────────────────────────────────┐"
-echo "│  Switch Claude provider at any time:                          │"
+echo "│  AI tools:  claude (Claude Code)  ·  opencode              │"
+echo "│                                                              │"
+echo "│  Switch LLM provider at any time:                          │"
 echo "│    use-anthropic-key → Anthropic API key (default)            │"
 echo "│    use-foundry       → Azure AI Foundry (run az login)        │"
 echo "│    use-anthropic     → Anthropic OAuth (Claude subscription)  │"
-echo "│    claude-mode       → show active provider                   │"
+echo "│    llm-mode          → show active provider                   │"
 echo "└──────────────────────────────────────────────────────────────┘"
 # ─────────────────────────────────────────────────────────────────────────
 

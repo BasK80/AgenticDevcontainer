@@ -107,14 +107,17 @@ When the bottom-left of VS Code shows `Dev Container: claude-agentic-devcontaine
 
 ---
 
-## 5. Run Claude
+## 5. Run Claude (or opencode)
 
 Open a terminal in VS Code (`` Ctrl+` ``) — this terminal is **inside** the container. Then:
 
 ```bash
-claude-mode      # prints the active provider
+llm-mode      # prints the active provider
 claude           # starts Claude Code
+opencode         # starts opencode (alternative agentic coding framework)
 ```
+
+Both `claude` and `opencode` share the same provider config — switching with `use-anthropic-key`, `use-foundry`, or `use-anthropic` updates both tools at once.
 
 If the wrong provider is active, switch it with one of:
 
@@ -149,7 +152,7 @@ docker exec "$FW" fw allow <hostname>                    # add it; takes effect 
 docker exec "$FW" fw list                                # confirm it's there
 ```
 
-**`claude-mode` shows the wrong provider** _(API key path)_
+**`llm-mode` shows the wrong provider** _(API key path)_
 Inside the container:
 ```bash
 echo "${ANTHROPIC_API_KEY:0:10}..."    # should print sk-ant-...
