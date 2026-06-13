@@ -284,6 +284,58 @@ Two options, both clear the Foundry env vars and rewrite `~/.claude/settings.jso
 - `use-anthropic-key` — use a direct Anthropic API key. Requires `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`) to be present in the container env — see [Anthropic API key (default provider)](#anthropic-api-key-default-provider) for host-side setup. **Default on first create when the key is set.**
 - `use-anthropic` — use the OAuth login flow (Claude subscription). Launches `claude login` on first use.
 
+## GitHub Copilot (opencode)
+
+If your organisation provides LLM access through a **GitHub Copilot** subscription (Pro, Pro+, Business, or Enterprise), you can use it inside the container with **opencode**, authenticated via GitHub's **browser device login** — no `GITHUB_TOKEN` or API key to manage. opencode stores its own credential in `~/.local/share/opencode/auth.json`.
+
+> **Claude Code is _not_ supported on this backend.** Claude Code only speaks to Anthropic-compatible endpoints (Anthropic direct, Bedrock, Vertex, Foundry) and has no GitHub Copilot mode — the upstream request for a bearer-token gateway was closed as "not planned". Routing it through Copilot would require a reverse-engineered local proxy (a ToS gray area, and it loses extended thinking), so that path was deliberately dropped. Use **opencode** for Copilot, or one of the Anthropic providers for Claude Code. See Step 3.2 in [`FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`](FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md) for the full rationale.
+
+### 1. Firewall allowlist
+
+opencode's Copilot flow reaches a few domains the default-deny firewall must allow. The baseline [`allowlist.default`](.devcontainer/firewall/allowlist.default) already includes them, so a **fresh** setup needs nothing extra:
+
+- `github.com` (device login) and `api.github.com` (Copilot token exchange) — pre-existing.
+- `.githubcopilot.com` — Copilot inference. The leading-dot wildcard covers the individual, **business**, and enterprise endpoints (e.g. `api.business.githubcopilot.com`).
+- `models.dev` — opencode's model catalogue.
+
+`initialize.sh` and `docker-compose.yml` are unchanged — browser login needs no token passthrough.
+
+### 2. Existing setups: add the domains to the running firewall
+
+A firewall seeds its policy from `allowlist.default` only on first start (see [`entrypoint.sh`](.devcontainer/firewall/entrypoint.sh)). If your container predates this change, add the two new domains live from the **host** (takes effect in ~5s, no rebuild):
+
+```bash
+FW="claude-$(basename "$PWD")-firewall"
+docker exec "$FW" fw allow .githubcopilot.com
+docker exec "$FW" fw allow models.dev
+```
+
+### 3. Log in with the browser device flow
+
+Inside the container, start opencode and connect Copilot:
+
+```bash
+opencode
+```
+
+Then in the opencode TUI:
+1. Run `/connect` and choose **GitHub Copilot**.
+2. opencode prints a one-time code and the URL `https://github.com/login/device`. Open it in your **host** browser, enter the code, and authorise (the browser runs on the host, so it has normal internet — only opencode's polling goes through the container firewall).
+3. Run `/models` and pick a Copilot-backed model.
+
+> The credential lives at `~/.local/share/opencode/auth.json`, which is **not** on a persisted volume — it survives container restarts but not a full rebuild. Re-run `/connect` after a rebuild.
+
+### 4. Verify
+
+```bash
+# inside the container
+echo "$HTTPS_PROXY"                                  # http://firewall:3128
+curl -sS -o /dev/null -w '%{http_code}\n' https://api.business.githubcopilot.com   # 401/404 (reachable), not 000/403 (blocked)
+opencode auth list                                   # shows a github-copilot credential
+```
+
+Then send a prompt in opencode against the selected Copilot model. If a call is blocked, check the firewall block feed from inside the container (`curl -s http://firewall:8099`) and allowlist any missing domain on the host with `fw allow`.
+
 ## Multi-agent inside this container
 
 No separate containers needed. Use git worktrees:

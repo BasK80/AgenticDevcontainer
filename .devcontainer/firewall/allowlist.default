@@ -17,6 +17,10 @@ api.github.com
 codeload.github.com
 .githubusercontent.com
 ghcr.io
+# --- opencode model catalogue ---
+models.dev
+# --- GitHub Copilot (opencode provider) ---
+.githubcopilot.com
 # --- Package registries ---
 pypi.org
 .pythonhosted.org

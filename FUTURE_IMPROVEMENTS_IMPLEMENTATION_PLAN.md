@@ -213,7 +213,18 @@ Dockerfile rebuild pins the version for end users.
 
 ---
 
-### Step 3.2 — GitHub Copilot SDK support
+### ~~Step 3.2 — GitHub Copilot SDK support~~ ✅ Completed (opencode browser login; Claude Code path dropped)
+
+**What was done.** Auth is opencode's **browser device login** — no `GITHUB_TOKEN` to manage.
+- `firewall/allowlist.default`: added `.githubcopilot.com` (leading-dot wildcard — covers individual/**business**/enterprise endpoints, e.g. `api.business.githubcopilot.com`) and `models.dev` (opencode's model catalogue). `github.com` (device login) and `api.github.com` (Copilot token exchange) were already in the baseline. Applied on the host via a one-off `apply-step-3.2.sh` (host-run helper, not committed — same convention as Step 3.1); the committed artifact is the `allowlist.default` change itself.
+- `initialize.sh` / `docker-compose.yml`: **no change** — browser login stores its own credential in `~/.local/share/opencode/auth.json`, so there is no token to plumb. (The original `GITHUB_TOKEN`-passthrough idea was dropped in favour of browser login at the user's request.)
+- opencode auth flow: `/connect` → GitHub Copilot → authorise at `github.com/login/device` in the host browser → `/models`. Mirrors the existing Azure `/connect` pattern in `llm-switch.sh`.
+- `README.md`: added a "GitHub Copilot (opencode)" section — firewall setup, browser device login, verify, and an explicit note that Claude Code is not supported on this backend.
+- **Claude Code path: dropped** (researched — see below).
+
+**Firewall domains confirmed empirically** against the firewall block feed: the org uses the `business` Copilot endpoint, and `models.dev` was being denied. `github.com`/`api.github.com` already pass.
+
+**Tested end-to-end.** `/connect` → GitHub Copilot browser login succeeds (`opencode auth list` shows a `github-copilot oauth` credential), a Copilot model responds, and no firewall denials appear beyond known telemetry noise. Existing firewall: `fw allow .githubcopilot.com` + `fw allow models.dev` (live, no rebuild). Fresh setups seed both from `allowlist.default`.
 
 **Goal.** Allow users who access LLMs through their GitHub Copilot subscription
 to use that credential inside the container.  **Primary target: `opencode`**
@@ -893,7 +904,7 @@ security configuration.  All items in the pass criteria should be green.
 | 6 | 4.4 — Firewall-aware AI tools | — |
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
 | 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
-| 9 | 3.2 — GitHub Copilot SDK (opencode only; Claude Code sub-path dropped — see Step 3.2) | 3.1 |
+| 9 | ~~3.2 — GitHub Copilot SDK (opencode browser login)~~ ✅ Done; Claude Code sub-path dropped | 3.1 |
 | 10 | 3.3 — Copilot CLI support | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
