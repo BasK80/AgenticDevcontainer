@@ -49,15 +49,20 @@ if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
 fi
 
 
-# ── Refresh API key settings on every start ──────────────────────────────
-# post-create.sh only runs on first creation; if settings.json is wiped
-# (full rebuild with volume removal), this ensures the key is restored
-# automatically as long as ANTHROPIC_API_KEY is set on the host.
-if [[ -n "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" != "1" ]]; then
-    # shellcheck disable=SC1090
-    source /workspace/.devcontainer/development/llm-switch.sh
+# ── Restore the active LLM provider on every start ───────────────────────
+# post-create.sh only runs on first creation; settings.json lives on a named
+# volume that a full rebuild can wipe. Re-apply the persisted provider choice
+# (~/.llm-provider, written by the use-* commands) so a deliberate switch —
+# e.g. to OAuth — survives rebuilds instead of snapping back to API-key mode.
+# shellcheck disable=SC1090
+source /workspace/.devcontainer/development/llm-switch.sh
+if [[ -f "$HOME/.llm-provider" ]]; then
+    _llm_apply_persisted
+    echo "[setup] Restored provider: $(< "$HOME/.llm-provider")"
+elif [[ -n "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" != "1" ]]; then
+    # No choice recorded yet, but a key is available — default to API-key mode.
     use-anthropic-key >/dev/null
-    echo "[setup] Refreshed provider: Anthropic API key"
+    echo "[setup] Defaulted provider: Anthropic API key"
 fi
 
 echo "[post-start] done."

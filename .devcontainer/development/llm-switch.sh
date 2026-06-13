@@ -33,6 +33,12 @@
 
 _CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 _OPENCODE_CONFIG="$HOME/.config/opencode/opencode.json"
+# Records the last `use-*` choice so it survives new terminals and rebuilds.
+# The container env (docker-compose) may still carry ANTHROPIC_API_KEY, which
+# would otherwise silently force API-key mode in every new shell.
+_LLM_PROVIDER_FILE="$HOME/.llm-provider"
+
+_llm_persist() { printf '%s\n' "$1" > "$_LLM_PROVIDER_FILE"; }
 
 _claude_write_settings() {
     # $1 = "foundry" | "anthropic-key" | "anthropic"
@@ -127,7 +133,9 @@ use-foundry() {
     unset ANTHROPIC_API_KEY
     unset ANTHROPIC_BASE_URL
     _claude_write_settings foundry
+    _llm_persist foundry
     echo "[claude] provider: Azure AI Foundry  (resource: ${ANTHROPIC_FOUNDRY_RESOURCE})"
+    echo "[claude] restart 'claude' to refresh the /model list for this provider"
     if ! az account show >/dev/null 2>&1; then
         echo "[claude] not logged in to Azure — run: az login"
     fi
@@ -154,7 +162,9 @@ use-anthropic-key() {
         export ANTHROPIC_API_KEY
     fi
     _claude_write_settings anthropic-key
+    _llm_persist anthropic-key
     echo "[claude] provider: Anthropic API key  (base: ${ANTHROPIC_BASE_URL})"
+    echo "[claude] restart 'claude' to refresh the /model list for this provider"
     _opencode_write_config anthropic-key
     echo "[opencode] provider: Anthropic  (base: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com})"
 }
@@ -169,12 +179,15 @@ use-anthropic() {
     unset ANTHROPIC_BASE_URL
     unset AZURE_RESOURCE_NAME
     _claude_write_settings anthropic
+    _llm_persist anthropic
     echo "[claude] provider: Anthropic OAuth (Claude subscription)"
+    echo "[claude] restart 'claude' to refresh the /model list for this provider"
     echo "[opencode] uses its own auth — run: opencode providers login"
     # Only auto-launch the interactive login when running in a TTY; in
-    # non-interactive contexts (e.g. devcontainer postCreateCommand) it
-    # would exit non-zero and abort the caller under `set -e`.
-    if [ -t 0 ] && [ -t 1 ]; then
+    # non-interactive contexts (e.g. devcontainer postCreateCommand, or the
+    # silent re-apply on new shells where _LLM_NO_LOGIN is set) it would
+    # exit non-zero and abort the caller under `set -e`.
+    if [ -z "${_LLM_NO_LOGIN:-}" ] && [ -t 0 ] && [ -t 1 ]; then
         if [ -z "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && [ ! -s "$HOME/.claude.json" ]; then
             echo "[claude] launching: claude login"
             claude login
@@ -182,6 +195,22 @@ use-anthropic() {
     else
         echo "[claude] not in a TTY — run: claude login"
     fi
+}
+
+# Re-apply the persisted provider choice quietly and non-interactively.
+# `local _LLM_NO_LOGIN=1` is dynamically scoped, so use-anthropic sees it and
+# skips its interactive `claude login` branch. Safe to call from new shells
+# and from post-start.sh.
+_llm_apply_persisted() {
+    [[ -f "$_LLM_PROVIDER_FILE" ]] || return 0
+    local _LLM_NO_LOGIN=1
+    local mode
+    mode="$(< "$_LLM_PROVIDER_FILE")"
+    case "$mode" in
+    foundry)       use-foundry       >/dev/null 2>&1 ;;
+    anthropic-key) use-anthropic-key >/dev/null 2>&1 ;;
+    anthropic)     use-anthropic     >/dev/null 2>&1 ;;
+    esac
 }
 
 # Convenience aliases.
@@ -196,3 +225,11 @@ llm-mode() {
         echo "Anthropic OAuth (Claude subscription)"
     fi
 }
+
+# In interactive shells, re-apply the persisted provider so a `use-*` choice
+# survives new terminals — otherwise a container-wide ANTHROPIC_API_KEY would
+# silently win. Non-interactive sourcing (post-start.sh) calls
+# _llm_apply_persisted explicitly instead.
+if [[ $- == *i* ]]; then
+    _llm_apply_persisted
+fi
