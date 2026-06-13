@@ -18,7 +18,7 @@ Phase 1 — Maintainability (foundation)
                   └─► Phase 3 — Framework / provider support
                           Step 3.1  opencode support              (also needs 1.2)
                           Step 3.2  GitHub Copilot SDK            (needs 3.1)
-                          Step 3.3  Copilot CLI support           (needs 3.2)
+                          Step 3.3  Copilot CLI support           (needs 3.2; bumps Node 20→22)
 
 Phase 4 — Quality-of-life (independent, any order)
   Step 4.1  Better boot experience
@@ -26,10 +26,14 @@ Phase 4 — Quality-of-life (independent, any order)
   Step 4.3  Skill / tool guide
   Step 4.4  Firewall-aware AI tools
 
-Phase 5 — Security validation (do last)
+Phase 5 — Security hardening
   Step 5.1  Firewall allowlist feature-flags
   Step 5.2  Lock down user-space package manager volumes
-  Step 5.3  Automated pentest from within the container
+        │
+        └─► Phase 6 — Toolchain refresh
+                  Step 6.1  Move to Node 24 LTS   (after everything except the pentest)
+                        │
+                        └─► Step 5.3  Automated pentest   (last; validates the Node 24 image)
 ```
 
 ---
@@ -322,48 +326,78 @@ automatically for future container setups.
 
 ### Step 3.3 — Support for Copilot CLI
 
-**Goal.** Install GitHub Copilot CLI (`gh copilot`) in the development image so
-users can use it as an alternative agentic coding tool alongside Claude Code.
-`llm-switch.sh` should configure the environment correctly for Copilot CLI where
-possible, and clearly state when a given LLM backend is incompatible with it.
+**Goal.** Install the agentic **GitHub Copilot CLI** in the development image so
+users can use it as an alternative agentic coding tool alongside Claude Code and
+opencode, authenticated with their GitHub Copilot subscription via browser login.
 
-**Authentication.** Copilot CLI requires a `GITHUB_TOKEN` with Copilot access,
-which is already plumbed into the container by Step 3.2.
+**Which tool.** This is the GA agentic CLI — npm package **`@github/copilot`**,
+command **`copilot`** (GA Feb 2026; plans/builds/reviews/remembers across
+sessions). **Not** the legacy `gh copilot` suggest/explain extension that an
+earlier draft of this step named — that does not match the "agentic coding tool"
+goal.
+
+**Authentication — browser device login (no token).** `copilot` → `/login`
+(or `copilot login`) prints a one-time code and opens `github.com/login/device`;
+authorise in the host browser. Same model as opencode in Step 3.2 — no
+`GITHUB_TOKEN` to manage (it *can* read `GH_TOKEN`/`GITHUB_TOKEN` or reuse `gh`'s
+token, but browser login is the chosen path). The credential is stored under the
+home dir (XDG config), which is **not** on a named volume, so it survives
+restarts but not a full rebuild → re-`/login` after a rebuild (same caveat as
+opencode).
+
+**⚠️ Node-version blocker.** Copilot CLI requires **Node ≥ 22**; the image is
+`FROM node:20-bookworm` (v20.20.2). Step 3.3 bumps the base image to
+**`node:22-bookworm`** (LTS, the minimum that satisfies the requirement). Moving
+all the way to Node 24 LTS is deferred to its own step — see *Step 6.1 — Move to
+Node 24 LTS* — so the regression surface here stays "does the 20→22 bump break
+claude / opencode / global-agent" rather than a bigger jump.
+
+**Firewall — already covered by Step 3.2.** The flow uses `github.com/login/device`
+(device login), `api.github.com` (token exchange), and `*.githubcopilot.com`
+(inference) — all allowlisted by Step 3.2. Expect **no new allowlist entries**;
+confirm empirically against the block feed during testing (Copilot CLI may emit
+update-check / telemetry domains, which stay blocked unless functionally
+required). This redefines the dependency on 3.2 as *firewall reuse*, not the
+dropped token plumbing.
 
 **Files to change.**
 
 | File | Change |
 |------|--------|
-| `.devcontainer/development/Dockerfile` | Add `gh extension install github/gh-copilot` (or equivalent) after the Claude Code installation; ensure `gh` is present |
-| `.devcontainer/development/llm-switch.sh` | Add notes per backend indicating Copilot CLI compatibility (e.g. Anthropic API: not supported; GitHub Copilot: native) |
-| `.devcontainer/development/post-create.sh` | Optionally mention Copilot CLI in the boot banner |
-| `README.md` | Add Copilot CLI to the "Available tools" section; document how to invoke it |
-| `USAGE.md` | Update with Copilot CLI notes |
+| `.devcontainer/development/Dockerfile` | Bump base `node:20-bookworm` → `node:22-bookworm`; add `RUN npm install -g @github/copilot` after the `opencode-ai` line |
+| `.devcontainer/development/post-create.sh` | Add `copilot` to the boot-banner AI-tools list |
+| `README.md` | Add a "GitHub Copilot CLI" subsection — install note, browser `/login`, verify; note it reuses Step 3.2's firewall entries |
+| `USAGE.md` | Mention `copilot` as a third agentic tool alongside `claude` / `opencode` |
 
-**Container constraints.** Two parts have different constraints:
+**No `llm-switch.sh` wiring.** Copilot CLI is a standalone tool with its own auth
+(like opencode-Copilot), independent of the Anthropic-provider switch — the
+`use-*` functions route `claude`/`opencode` over Anthropic-compatible endpoints
+and do not apply. At most add a one-line header note in `llm-switch.sh` that
+Copilot CLI authenticates separately via `copilot login`.
 
-- **`gh` CLI binary** — if not already in the image it must be added to the
-  Dockerfile and the container rebuilt.  Check first: run `which gh` inside the
-  container.
-- **`gh copilot` extension** — extensions are user-space and install to
-  `~/.local/share/gh/extensions/`.  Once `gh` is present, installing the
-  extension from inside the container requires no rebuild.
+**Container constraints.** `Dockerfile` and `post-create.sh` are mounted
+read-only inside the container, so their edits go through a one-off host
+`apply-step-3.3.sh` (same convention as Step 3.1), and the Node bump + npm
+install require a **full image rebuild** (unlike Step 3.2, which was
+firewall-only with no rebuild).
 
-**Choices for getting `gh` into the container.**
+**Risks to validate during implementation.**
+- **Node 20→22 regressions** — revalidate `claude`, `opencode`, and the custom
+  `global-agent-bootstrap.js` after the bump. Low risk; *fallback* if it
+  regresses: install Copilot CLI via its standalone shell installer (bundles its
+  own runtime), leaving system Node at 20.
+- **`NODE_OPTIONS` proxy bootstrap** — the image sets
+  `NODE_OPTIONS=-r /usr/local/lib/global-agent-bootstrap.js` image-wide;
+  opencode needed `NODE_OPTIONS=""` for some subcommands. Verify `copilot` runs
+  and reaches the proxy under the bootstrap; wrap if needed.
 
-- **A — Check first (free):** `which gh`.  If it is already in the image,
-  install the extension from inside the container and skip any rebuild.
-- **B — Add `gh` to Dockerfile, rebuild (standard):** One rebuild, then all
-  subsequent Copilot CLI changes (extension updates, config) are user-space.
-- **C — Download `gh` binary to `~/.local/bin` (no rebuild, temporarily lower
-  security):** Download a `gh` release binary from `github.com` (add to the
-  allowlist temporarily), place it in `~/.local/bin`, test, then add to the
-  Dockerfile.  Remove the temporary allowlist entry before shipping.
-
-**Verification.** After rebuild:
-- `gh copilot --version` succeeds inside the container.
-- `gh copilot` requests route through the Squid proxy and are blocked when the
-  target domain is not on the allowlist.
+**Verification (test before commit).**
+1. Host: run `apply-step-3.3.sh`, rebuild the dev image, reopen.
+2. `copilot --version` succeeds (confirms install on Node 22).
+3. `copilot` → `/login` → authorise in the host browser; run a small agentic
+   task against a repo file and confirm a response.
+4. Watch the firewall block feed (`curl -s http://firewall:8099`) during the
+   task; allowlist any genuinely-required new domain on the host with `fw allow`.
 
 ---
 
@@ -892,6 +926,56 @@ security configuration.  All items in the pass criteria should be green.
 
 ---
 
+## Phase 6 — Toolchain refresh
+
+*Runs after Phase 5's hardening (5.1, 5.2) but before the pentest (5.3) — it
+changes the base image, so it belongs once the toolchain is otherwise complete,
+and the pentest should validate the final Node 24 image. Placed last in this
+document for that reason; see the order table below.*
+
+### Step 6.1 — Move to Node 24 LTS
+
+**Goal.** Move the development image from Node 22 (set by Step 3.3, the minimum
+Copilot CLI needs) all the way to the current **Node 24 LTS**, so the toolchain
+sits on a long-term-support release — one deliberate bump rather than drift.
+
+**Depends on:** every other step **except** the pentest (Step 5.3). It touches
+the base image shared by all AI tools, so do it once everything else is in
+place; the pentest then runs against the Node 24 image.
+
+**Files to change.**
+
+| File | Change |
+|------|--------|
+| `.devcontainer/development/Dockerfile` | Bump base `node:22-bookworm` → `node:24-bookworm` |
+
+Edited on the host (read-only mount) via a one-off `apply-step-6.1.sh`; requires
+a **full image rebuild**.
+
+**Regression test — everything still works on Node 24.** The image's Node runs
+Claude Code, opencode, Copilot CLI, and the custom `global-agent` proxy
+bootstrap, so the bump is only safe if each is re-verified after rebuild:
+
+1. **Build** the image on `node:24-bookworm`; confirm it builds clean (the
+   build-time `npm install -g` of `global-agent`, `@anthropic-ai/claude-code`,
+   `opencode-ai`, `@github/copilot` all succeed).
+2. **Versions:** `node --version` (≥ 24), `claude --version`, `opencode
+   --version`, `copilot --version` all succeed.
+3. **Proxy bootstrap:** confirm `NODE_OPTIONS=-r /usr/local/lib/global-agent-bootstrap.js`
+   still loads and routes Node's `fetch`/`https` through Squid — e.g. a Node
+   `fetch` to an allowlisted host succeeds while a non-allowlisted host is
+   blocked (no direct egress).
+4. **Each tool end-to-end:** launch each (`claude`, `opencode`, `copilot`),
+   confirm it authenticates with its active provider and returns a completion
+   through the firewall.
+5. **Firewall block feed** (`curl -s http://firewall:8099`) shows no new
+   required-but-denied domains introduced by the bump.
+
+**Fallback.** If a tool regresses on Node 24, pin back to `node:22-bookworm`
+(still supported) and file the incompatibility upstream before retrying.
+
+---
+
 ## Quick-reference: implementation order
 
 | Order | Step | Depends on |
@@ -908,4 +992,5 @@ security configuration.  All items in the pass criteria should be green.
 | 10 | 3.3 — Copilot CLI support | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
-| 13 | 5.3 — Automated pentest | all above |
+| 13 | 6.1 — Move to Node 24 LTS | all except 5.3 |
+| 14 | 5.3 — Automated pentest | all above (incl. 6.1) |

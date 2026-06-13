@@ -17,6 +17,13 @@ Also fixed a bug in the `fw` script: line 9 was missing its `#` comment prefix (
 
 `tools/fw` has been removed. A native `fw` script now lives directly on the firewall container (`/usr/local/bin/fw`) and supports `allow`, `deny`, `list`, `blocks`, and `log`. README and USAGE both document `docker exec "$FW" fw <command>` as the management interface.
 
+### Move to Node 24 LTS
+The development image is built on `node:20-bookworm`. Step 3.3 (Copilot CLI) bumps this to `node:22-bookworm` because Copilot CLI requires Node ≥ 22. Once that lands, the image should move all the way to the current **Node 24 LTS** (`node:24-bookworm`) so the toolchain sits on a long-term-support release rather than the soon-to-age 22 line — one deliberate bump instead of drifting.
+
+Because every AI tool in the image runs on this Node (Claude Code, opencode, Copilot CLI) plus the custom `global-agent` proxy bootstrap, the bump must be accompanied by a **regression test that everything still works**: build the image on `node:24-bookworm`, then verify each tool launches, authenticates, reaches the network through the firewall proxy, and returns a completion — and that the `global-agent-bootstrap.js` preload still routes Node's `fetch`/`https` through Squid. The detailed step and its checklist live in *Step 6.1 — Move to Node 24 LTS* in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`.
+
+**Scheduling:** this should be done **after all other improvements except the pentest** — it touches the base image, so it makes sense once the toolchain is otherwise complete, and the automated pentest (the final step) should then run against the Node 24 image.
+
 ## Usability
 ### ~~More fine-grained .devcontainer mount~~ ✅ Done
 ~~The .devcontainer directory is fully mounted read-only, so you cannot make any changes to the setup from within the agentic development container, that would become active after a rebuild. This is an important security feature, but it is a bit too broad, since most of the files in .devcontainer/development pose no security risk at all if they are edited by a user or agent and that would make life a lot easier.~~
