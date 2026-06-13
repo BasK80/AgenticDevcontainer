@@ -147,6 +147,24 @@ grep ANTHROPIC_API_KEY ~/.claude/settings.json
 
 If you set the key after the container was already created, run `use-anthropic-key` once in the container shell to rewrite `~/.claude/settings.json`.
 
+### Store the key on the host with the helper script
+
+Exporting `ANTHROPIC_API_KEY` in your shell or shell rc works, but it means the variable has to be present in the exact shell that launches VS Code every time. The helper script [`tools/setup-host-secrets.sh`](tools/setup-host-secrets.sh) makes that persistent:
+
+```bash
+bash tools/setup-host-secrets.sh
+```
+
+What it does:
+
+- Prompts (with hidden input) for `ANTHROPIC_API_KEY` and an optional `ANTHROPIC_BASE_URL`. Re-running it preserves any value you leave blank, so it doubles as a rotation tool.
+- Writes them to `~/.devcontainer-secrets` on the host with `chmod 600`. This file lives outside the repo and is never committed.
+- Patches [`.devcontainer/initialize.sh`](.devcontainer/initialize.sh) (idempotently — it skips if already patched) to `source ~/.devcontainer-secrets` early. Because `initialize.sh` runs as the `initializeCommand` on every container start, the secrets are re-exported on the host side of `initialize.sh` for each rebuild — so the value flows into the container via the normal `initializeCommand → .env → docker-compose` passthrough without you having to keep it exported in your launching shell.
+
+**Why it exists:** a full rebuild that removes the named Docker volume wipes `~/.claude/settings.json`, and a fresh login shell may not have `ANTHROPIC_API_KEY` exported. Storing the secret once on the host means the key is restored automatically on every rebuild (`post-start.sh` re-applies `use-anthropic-key` when it sees the variable). After running the script once, just rebuild the container.
+
+> Security note: `~/.devcontainer-secrets` holds the key in plaintext on the host (mode `600`). Anyone who can read your home directory or the Docker daemon can read it — same trust model as the named-volume storage below.
+
 ### Set the key from inside the container (survives restarts)
 
 You can skip the host setup entirely and configure the key from a shell inside the dev container:

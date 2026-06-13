@@ -91,7 +91,15 @@ code .
 
 > **Why from the shell?** Setting them in `.bashrc`/`.zshrc` also works, but you must then fully quit and reopen VS Code so it picks them up.
 
-For persistent key storage or alternative setup methods (including Windows PowerShell), see [README — Anthropic API key](README.md#anthropic-api-key-default-provider).
+**Recommended (persistent, survives rebuilds):** instead of exporting in every shell, run the helper once on the host:
+
+```bash
+bash tools/setup-host-secrets.sh
+```
+
+It prompts for `ANTHROPIC_API_KEY` (and optional `ANTHROPIC_BASE_URL`), stores them in `~/.devcontainer-secrets` (mode `600`, never committed), and patches `.devcontainer/initialize.sh` to source that file on every container start. After running it, just rebuild the container — no need to keep the variables exported in your launching shell. See [README — store the key on the host with the helper script](README.md#store-the-key-on-the-host-with-the-helper-script).
+
+For other setup methods (including Windows PowerShell), see [README — Anthropic API key](README.md#anthropic-api-key-default-provider).
 
 ---
 
