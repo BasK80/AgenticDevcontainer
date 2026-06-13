@@ -30,7 +30,9 @@ The current version of this solution is fully focussed on claude code, but I wou
 Same story as for the copilot cli, but with opencode.
 
 ### Support for GitHub copilot SDK
-The current setup works with an anthropic account, LLM's in Azure foundry or an Anthropic API key to either Anthropic itself or a third-party LLM gateway. In many organisations the preferred way to use LLM's is through GitHub copilot, so having out-of-the-box support for the copilot SDK would be a big improvement. 
+The current setup works with an anthropic account, LLM's in Azure foundry or an Anthropic API key to either Anthropic itself or a third-party LLM gateway. In many organisations the preferred way to use LLM's is through GitHub copilot, so having out-of-the-box support for the copilot SDK would be a big improvement.
+
+**Update (2026-06-13):** Researched the Claude Code angle. The clean path is `opencode`, which supports Copilot natively via a `GITHUB_TOKEN`. Routing **Claude Code** through a Copilot subscription is *not* viable out of the box: Claude Code hardcodes `x-api-key` auth (no bearer-token gateway mode — the upstream feature request was closed as "not planned"), and `api.githubcopilot.com` requires Copilot-editor client headers. It only works through a reverse-engineered local proxy that impersonates the Copilot client, which loses extended thinking and is a ToS gray area — so the Claude Code sub-path is dropped. Scope this improvement to the opencode `GITHUB_TOKEN` plumbing. See Step 3.2 in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md` for details.
 
 ### Skill/tool guide
 I do not want to preload this image with skills or tools, since they are too volatile and would add a lot of maintenance overhead. It would be helpful however to add a guide on where to find good (Info Support) skills and tools and how to use them in the development container.

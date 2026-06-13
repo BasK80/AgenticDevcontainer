@@ -242,17 +242,57 @@ configurable to use Copilot models without further changes.  Verify by running
 `opencode` with a Copilot model ID (use `gh api /copilot/models --jq '.[].id'`
 on the host to discover available IDs).
 
-**Nice-to-have: Claude Code support.**
+**Nice-to-have: Claude Code support — RESEARCHED 2026-06-13: not recommended, skip.**
 
-| File | Change |
-|------|--------|
-| `.devcontainer/development/llm-switch.sh` | Add a `use-copilot` function that sets `ANTHROPIC_BASE_URL` to the GitHub Models endpoint and exports `GITHUB_TOKEN` as the credential |
-| `.devcontainer/development/post-create.sh` | Add a `CLAUDE_CODE_USE_COPILOT` env-var branch (similar to `CLAUDE_CODE_USE_FOUNDRY`) that calls `use-copilot` as the default provider |
+The key uncertainty below has been resolved: **Claude Code cannot use a GitHub
+Copilot credential without a reverse-engineered local proxy, and doing so is a
+ToS gray area.** Scope Step 3.2 to the opencode `GITHUB_TOKEN` plumbing only.
 
-**Key uncertainty.** The GitHub Models API is OpenAI-compatible.  Claude Code
-may accept it via `ANTHROPIC_BASE_URL` + an API-key override, or may require a
-local proxy.  Investigate and document the result; skip the Claude Code path if
-the integration is not stable.
+*Why a direct `ANTHROPIC_BASE_URL` override does not work — two blockers:*
+
+1. **Auth header mismatch.** Claude Code hardcodes the `x-api-key` header and
+   supports only three auth modes (Anthropic-direct `x-api-key`, AWS Bedrock
+   SigV4, Google Vertex OAuth). The Copilot endpoint
+   (`https://api.githubcopilot.com`) requires `Authorization: Bearer <github-token>`.
+   Claude Code has no "bearer gateway" mode to emit that header. The feature
+   request to add exactly this (`ANTHROPIC_AUTH_MODE="bearer"` + Copilot base
+   URL) is [anthropics/claude-code#52572](https://github.com/anthropics/claude-code/issues/52572),
+   **closed as "not planned" (stale)** — no first-party path is coming.
+2. **Copilot client-identification headers.** `api.githubcopilot.com` rejects
+   requests lacking Copilot-editor headers (`editor-version`,
+   `Copilot-Integration-Id`, …). Community proxies exist precisely to inject
+   these and impersonate a Copilot client.
+
+*Note:* Copilot's backend **does** serve an Anthropic-style Messages API for its
+Claude models, but that does not help — the blocker is on Claude Code's client
+side, not Copilot's server side.
+
+*What works (and why we still skip it):* a local translation proxy —
+`copilot-api` ([ericc-ch](https://github.com/ericc-ch/copilot-api) /
+[caozhiyuan fork](https://github.com/caozhiyuan/copilot-api)) on `localhost:4141`,
+or LiteLLM. Claude Code is then pointed at the proxy:
+
+```bash
+ANTHROPIC_BASE_URL=http://localhost:4141
+ANTHROPIC_AUTH_TOKEN=sk-dummy       # real auth is the GITHUB_TOKEN the proxy holds
+ANTHROPIC_MODEL=claude-sonnet-4.5
+```
+
+Reasons to skip this path in this project:
+
+- **ToS / security risk.** The proxy works by impersonating the Copilot editor
+  client. For a security-hardened devcontainer (the whole Phase 5 theme),
+  baking in a reverse-engineered proxy that masquerades as another vendor's
+  client is a real liability.
+- **Extended thinking must be disabled** — unsupported through these proxies.
+- **Extra moving parts** — requires a long-running proxy daemon inside the
+  container, versus the clean native `GITHUB_TOKEN` passthrough the opencode
+  path (Step 3.1) already gets for free.
+
+**Conclusion.** The opencode path delivers the actual goal (use a Copilot
+credential in the container) natively and cleanly. The Claude Code path is
+ToS-questionable, loses features, and has no first-party support — **do not
+implement.**
 
 **Container constraints.** `initialize.sh` and `docker-compose.yml` are mounted
 read-only inside the container and must be edited on the host.  A full rebuild
@@ -264,8 +304,8 @@ automatically for future container setups.
 **Verification.**
 2. Inside the container, confirm `echo $GITHUB_TOKEN` is non-empty.
 3. Run `opencode` targeting a Copilot model — confirm the response arrives.
-4. (Nice-to-have) Run `use-copilot && claude "hello"` — confirm Claude Code
-   responds via the GitHub-hosted model.
+4. ~~(Nice-to-have) Claude Code via Copilot~~ — dropped; see the researched
+   conclusion above (requires a ToS-questionable local proxy, not implemented).
 
 ---
 
@@ -853,7 +893,7 @@ security configuration.  All items in the pass criteria should be green.
 | 6 | 4.4 — Firewall-aware AI tools | — |
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
 | 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
-| 9 | 3.2 — GitHub Copilot SDK | 3.1 |
+| 9 | 3.2 — GitHub Copilot SDK (opencode only; Claude Code sub-path dropped — see Step 3.2) | 3.1 |
 | 10 | 3.3 — Copilot CLI support | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
