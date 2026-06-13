@@ -129,7 +129,8 @@ For **Foundry**: after switching, run `az login` before starting `claude`. Azure
 **Custom gateway only:** if your `ANTHROPIC_BASE_URL` points to a hostname not already in the allowlist, add it from your host shell before starting:
 
 ```bash
-./tools/fw allow your-gateway.example.com
+FW="claude-$(basename "$PWD")-firewall"
+docker exec "$FW" fw allow your-gateway.example.com
 ```
 
 That's it — try a prompt like `list the files in this repo`.
@@ -142,9 +143,10 @@ That's it — try a prompt like `list the files in this repo`.
 The gateway hostname isn't in the firewall allowlist. From your **host** shell (not inside the container), in the repo root:
 
 ```bash
-./tools/fw blocks                            # see what got blocked
-./tools/fw allow <hostname>                  # add it; takes effect within ~5 seconds
-./tools/fw list                              # confirm it's there
+FW="claude-$(basename "$PWD")-firewall"
+docker exec "$FW" fw blocks                              # see what got blocked
+docker exec "$FW" fw allow <hostname>                    # add it; takes effect within ~5 seconds
+docker exec "$FW" fw list                                # confirm it's there
 ```
 
 **`claude-mode` shows the wrong provider** _(API key path)_

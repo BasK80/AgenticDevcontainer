@@ -51,22 +51,14 @@ Runs once after first container creation. Generic hook for project setup (depend
 Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `claude-mode` shell commands for switching the Claude provider in-place. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
 
 ### `.devcontainer/firewall/`
-Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s and after `allow`/`deny`), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`).
+Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
 
 ### `.devcontainer/control/`
-Out-of-band management plane, unreachable from `development`. Holds the policy volume and the scripts the host-side [`tools/fw`](tools/fw) wrapper invokes:
-- `allow.sh` — append a domain to the permanent allowlist, or to the TTL list with an auto-expiring lease.
-- `deny.sh` — remove a domain from the permanent and TTL allowlists (exact match; wildcard parents must be removed directly).
-- `list_allows.sh` — print the live compiled allowlist (`/policy/allowlist.acl`).
-- `show_blocks.sh` — print the last 30 lines of the Squid access log.
-- `tail_firewall.sh` — follow the Squid access log live.
-
-### `tools/fw`
-Host-side helper: `./tools/fw allow|deny|list|blocks|log`. Auto-detects the project name from the current directory. Run on the host, not inside the dev container.
+Out-of-band management plane, unreachable from `development`. Holds the policy volume and the same management scripts as the firewall container (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`) — called by the web dashboard.
 
 ## How to use
 
-1. Drop `.devcontainer/` and `tools/` into your project root.
+1. Drop `.devcontainer/` into your project root.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds.
 4. Open a terminal in the `development` container and run `claude`.
@@ -74,12 +66,15 @@ Host-side helper: `./tools/fw allow|deny|list|blocks|log`. Auto-detects the proj
 ### Manage the allowlist from the host
 
 ```bash
-./tools/fw allow pypi.org                  # permanent allow
-./tools/fw allow files.pythonhosted.org 60 # temporary allow, 60s TTL
-./tools/fw deny  pypi.org                  # remove an allow (re-block); perm + temp
-./tools/fw list                            # show the live, compiled allowlist
-./tools/fw blocks                          # recent blocked requests
-./tools/fw log                             # follow the access log
+# Set once in your host shell (or add to ~/.bashrc / ~/.zshrc):
+FW="claude-$(basename "$PWD")-firewall"
+
+docker exec      "$FW" fw allow pypi.org                   # permanent allow
+docker exec      "$FW" fw allow files.pythonhosted.org 60  # temporary allow, 60s TTL
+docker exec      "$FW" fw deny  pypi.org                   # remove an allow (re-block); perm + temp
+docker exec      "$FW" fw list                             # show the live, compiled allowlist
+docker exec      "$FW" fw blocks                           # recent blocked requests
+docker exec -it  "$FW" fw log                              # follow the access log
 ```
 
 Changes take effect within ~5s (the firewall watcher reloads Squid). Run these on the **host**, not inside the dev container — `development` is deliberately unable to reach the management plane.
@@ -94,11 +89,7 @@ A single-page dashboard is served by the `control` container at **<http://127.0.
 | **Allowlist** | Permanent and temporary entries. Each row has a **Remove** button. Temporary entries show a live countdown. |
 | **Recently Blocked** | Domains with at least one denied request, grouped by host and sorted by recency. One-click **Permanent** / **5m** / **15m** / **1h** and **Custom…** allow buttons per row. |
 
-Every mutation calls the same `allow.sh` / `deny.sh` scripts as `./tools/fw`, so the CLI and the dashboard are always in sync.
-
-```bash
-./tools/fw web    # print the dashboard URL
-```
+Every mutation calls the same `allow.sh` / `deny.sh` scripts as `docker exec "$FW" fw`, so the CLI and the dashboard are always in sync.
 
 ### See blocks from inside the dev container
 - Each blocked request shows up as a `403` proxy error in your tools.
@@ -108,7 +99,7 @@ Every mutation calls the same `allow.sh` / `deny.sh` scripts as `./tools/fw`, so
 
 When `ANTHROPIC_API_KEY` is exported on the host at the time you open the container, the dev container picks `use-anthropic-key` as the default provider on first create. The key (and an optional `ANTHROPIC_BASE_URL`) is passed in via `initializeCommand` → `.devcontainer/.env` → the `development` service `environment` block in [docker-compose.yml](.devcontainer/docker-compose.yml). `.env` is gitignored, but the key is still readable by anything that can run `docker inspect` on the container — do not use a key you wouldn't put on disk.
 
-The firewall already allows `api.anthropic.com`. If you point `ANTHROPIC_BASE_URL` at a custom host (proxy, gateway), add it to the allowlist: `./tools/fw allow your-gateway.example.com`.
+The firewall already allows `api.anthropic.com`. If you point `ANTHROPIC_BASE_URL` at a custom host (proxy, gateway), add it to the allowlist: `docker exec "$FW" fw allow your-gateway.example.com`.
 
 ### Set the key on the host
 
@@ -186,7 +177,7 @@ Two ways to add:
 
 ```bash
 # Temporary/iterating — applies within ~5s, no rebuild needed:
-./tools/fw allow YOUR-RESOURCE.services.ai.azure.com
+docker exec "$FW" fw allow YOUR-RESOURCE.services.ai.azure.com
 
 # Permanent baseline — edit and rebuild the firewall image:
 #   1. add the line to .devcontainer/firewall/allowlist.default
@@ -301,7 +292,7 @@ tmux attach -t agents
 
 **macOS bind mount performance.** `node_modules`, `.venv`, and similar high-IOPS paths are on named volumes in this config. If you add new high-write paths, follow the same pattern.
 
-**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. Edit the baked default in `.devcontainer/firewall/allowlist.default` and rebuild the firewall image to change the seed; use `./tools/fw allow|deny` for live edits.
+**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. Edit the baked default in `.devcontainer/firewall/allowlist.default` and rebuild the firewall image to change the seed; use `docker exec "$FW" fw allow|deny` for live edits.
 
 ## Debugging blocked traffic
 
@@ -309,12 +300,12 @@ tmux attach -t agents
 # From inside the dev container:
 curl -s http://firewall:8099 | tail -30
 
-# From the host:
-./tools/fw blocks                          # last 30 access log lines
-./tools/fw log                             # live tail
-./tools/fw list                            # current compiled allowlist
-./tools/fw allow <hostname>                # add the missing destination
-./tools/fw allow <hostname> 300            # 5-minute temporary allow while debugging
+# From the host (FW="claude-$(basename "$PWD")-firewall"):
+docker exec      "$FW" fw blocks                           # last 30 access log lines
+docker exec -it  "$FW" fw log                              # live tail
+docker exec      "$FW" fw list                             # current compiled allowlist
+docker exec      "$FW" fw allow <hostname>                 # add the missing destination
+docker exec      "$FW" fw allow <hostname> 300             # 5-minute temporary allow while debugging
 ```
 
 ## Cleanup
@@ -350,47 +341,26 @@ docker compose -f .devcontainer/docker-compose.yml up -d --remove-orphans
 > ```
 > Replace `YOURPROJECT` with your folder basename.
 
-The `tools/fw` wrapper and the web dashboard at `:8088` will no longer be available. Use the direct approach below instead.
+The web dashboard at `:8088` will no longer be available. The `fw` script inside the firewall container remains fully functional — use it directly:
 
 ### Managing the firewall without the control container
 
-All policy state lives on the `policy` volume, mounted at `/policy` inside the `firewall` container. The watcher process inside the container recompiles the ACL and reconfigures Squid within ~5 seconds of any change.
+```bash
+# Set a shell variable for convenience (run on the host):
+FW="claude-$(basename "$PWD")-firewall"
+
+docker exec      "$FW" fw allow example.com       # permanent allow
+docker exec      "$FW" fw allow example.com 300   # temporary allow, 300s TTL
+docker exec      "$FW" fw deny  example.com        # remove an allow (re-block)
+docker exec      "$FW" fw list                     # current compiled allowlist
+docker exec      "$FW" fw blocks                   # last 30 access log lines
+docker exec -it  "$FW" fw log                      # follow the live access log
+```
+
+All policy state lives on the `policy` volume, mounted at `/policy` inside the `firewall` container. The watcher process recompiles the ACL and reconfigures Squid within ~5 seconds of any change.
 
 | File | Purpose |
 |---|---|
 | `/policy/allowlist.acl.perm` | Permanent allows — one domain per line. |
 | `/policy/ttl.tsv` | Temporary allows — tab-separated `<epoch_expiry>\t<domain>`. |
 | `/policy/allowlist.acl` | Compiled ACL read by Squid — **auto-generated, do not edit directly**. |
-
-```bash
-# Set a shell variable for convenience (run on the host):
-FW="claude-$(basename "$PWD")-firewall"
-
-# Open a shell in the firewall container:
-docker exec -it "$FW" sh
-
-# --- Inside the container ---
-
-# Show the current permanent allowlist:
-cat /policy/allowlist.acl.perm
-
-# Show the live compiled ACL (what Squid is actually enforcing):
-cat /policy/allowlist.acl
-
-# Permanently allow a domain:
-echo "example.com" >> /policy/allowlist.acl.perm
-
-# Remove a permanent allow (exact match):
-sed -i '/^example\.com$/d' /policy/allowlist.acl.perm
-
-# Add a temporary allow that expires in 300 seconds:
-printf '%s\texample.com\n' "$(( $(date +%s) + 300 ))" >> /policy/ttl.tsv
-
-# Show recent blocked requests:
-tail -30 /var/log/squid/access.log | grep DENIED
-
-# Follow the live access log:
-tail -f /var/log/squid/access.log
-```
-
-All edits to `/policy/allowlist.acl.perm` and `/policy/ttl.tsv` are automatically picked up by the watcher within ~5 seconds — no manual Squid reload needed.

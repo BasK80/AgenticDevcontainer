@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Firewall management — run from the host:
+#   FW="claude-$(basename "$PWD")-firewall"
+#   docker exec      "$FW" fw allow <domain> [ttl_seconds]
+#   docker exec      "$FW" fw deny  <domain>
+#   docker exec      "$FW" fw list
+#   docker exec      "$FW" fw blocks
+#   docker exec     "$FW" fw <command>
+  docker exec -it  "$FW" fw log
+set -euo pipefail
+
+PERM=/policy/allowlist.acl.perm
+TTL=/policy/ttl.tsv
+
+case "${1:-}" in
+  allow)
+    d="${2:?usage: fw allow <domain> [ttl_seconds]}"
+    ttl="${3:-}"
+    if [ -n "$ttl" ]; then
+      printf '%s\t%s\n' "$(( $(date +%s) + ttl ))" "$d" >> "$TTL"
+      echo "added $d (ttl ${ttl}s) — active within ~5s"
+    else
+      echo "$d" >> "$PERM"
+      echo "added $d (permanent) — active within ~5s"
+    fi
+    ;;
+  deny)
+    d="${2:?usage: fw deny <domain>}"
+    removed=0
+    if [ -f "$PERM" ] && grep -qxF "$d" "$PERM" 2>/dev/null; then
+      grep -vxF "$d" "$PERM" > "$PERM.new" 2>/dev/null || true
+      mv -f "$PERM.new" "$PERM"
+      removed=1
+    fi
+    if [ -f "$TTL" ] && cut -f2 "$TTL" 2>/dev/null | grep -qxF "$d"; then
+      awk -F'\t' -v d="$d" '$2!=d' "$TTL" > "$TTL.new" 2>/dev/null || true
+      mv -f "$TTL.new" "$TTL"
+      removed=1
+    fi
+    if [ "$removed" = 1 ]; then
+      echo "removed $d — blocked again within ~5s"
+    else
+      echo "note: '$d' is not an explicit allowlist entry."
+      echo "      if it is still reachable it may be covered by a wildcard parent"
+      echo "      (e.g. .githubusercontent.com). check: docker exec \$FW fw list"
+    fi
+    ;;
+  list)    cat /policy/allowlist.acl ;;
+  blocks)  tail -n 30 /var/log/squid/access.log ;;
+  log)     exec tail -f /var/log/squid/access.log ;;
+  *)
+    echo "usage: fw allow <domain> [ttl_seconds] | fw deny <domain> | fw list | fw blocks | fw log"
+    echo ""
+    echo "run from the host as:"
+    echo "  FW=\"claude-\$(basename \"\$PWD\")-firewall\""
+    echo "  docker exec     "$FW" fw <command>
+  docker exec -it \"\$FW\" fw log"
+    ;;
+esac
