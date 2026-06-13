@@ -18,8 +18,10 @@ Also fixed a bug in the `fw` script: line 9 was missing its `#` comment prefix (
 `tools/fw` has been removed. A native `fw` script now lives directly on the firewall container (`/usr/local/bin/fw`) and supports `allow`, `deny`, `list`, `blocks`, and `log`. README and USAGE both document `docker exec "$FW" fw <command>` as the management interface.
 
 ## Usability
-### More fine-grained .devcontainer mount
-The .devcontainer directory is fully mounted read-only, so you cannot make any changes to the setup from within the agentic development container, that would become active after a rebuild. This is an important security feature, but it is a bit too broad, since most of the files in .devcontainer/development pose no security risk at all if they are edited by a user or agent and that would make life a lot easier. 
+### ~~More fine-grained .devcontainer mount~~ ✅ Done
+~~The .devcontainer directory is fully mounted read-only, so you cannot make any changes to the setup from within the agentic development container, that would become active after a rebuild. This is an important security feature, but it is a bit too broad, since most of the files in .devcontainer/development pose no security risk at all if they are edited by a user or agent and that would make life a lot easier.~~
+
+The blanket `../.devcontainer:/workspace/.devcontainer:ro` mount is replaced with granular per-path mounts. `development/` is writable, allowing in-container edits to `.zshrc`, `llm-switch.sh`, and similar user-experience files. Security-perimeter files (`Dockerfile`, `post-create.sh`, `post-start.sh`, `firewall/`, `control/`, `docker-compose.yml`, `devcontainer.json`, `.env`, `initialize.sh`) remain individually read-only.
 
 ### Support for copilot cli
 The current version of this solution is fully focussed on claude code, but I would like to extend this with support to copilot cli out of the box as well. The scripts that switch between backend llm providers should support set up the environment for both claude and copilot cli where possible and if a provider can only be used with either claude or copilot, then the switch script should state this clearly. 

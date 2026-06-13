@@ -75,7 +75,7 @@ allow/deny, TTL allow with expiry, error handling) and all tests passed.
 *Depends on: Step 1.1 and Step 1.2 (so the cleaned-up file structure is stable
 before we change the mount topology).*
 
-### Step 2.1 — Replace the blanket read-only mount with per-directory mounts
+### ~~Step 2.1 — Replace the blanket read-only mount with per-directory mounts~~ ✅ Completed
 
 **Problem.** The entire `.devcontainer` directory is mounted read-only
 (`"../.devcontainer:/workspace/.devcontainer:ro"`).  Editing harmless
@@ -127,15 +127,24 @@ so Docker will honour the more-specific mount for each subdirectory.  The
 `development/` subdirectory will therefore be read-write while everything else
 is explicitly read-only.
 
-**Container constraints.** The volume mount topology only takes effect after a
-full container rebuild; there is no way to test this step without one.  Rebuild
-time is typically 1–3 minutes once the base image is cached — keep iterations
-small.
+**What was done.**
+- `.devcontainer/docker-compose.yml`: replaced the single
+  `../.devcontainer:/workspace/.devcontainer:ro` entry with 10 granular entries
+  matching the classification table above.
+- `development/` is mounted read-write; `development/Dockerfile`,
+  `development/post-create.sh`, and `development/post-start.sh` are
+  individually overlaid as read-only on top.
+- All other security-perimeter paths (`firewall/`, `control/`,
+  `docker-compose.yml`, `devcontainer.json`, `.env`, `initialize.sh`) are
+  mounted read-only.
 
-**Verification.** Inside the container:
-- `touch /workspace/.devcontainer/firewall/squid.conf` — should fail with
-  "Read-only file system".
-- `touch /workspace/.devcontainer/docker-compose.yml` — should fail.
+**Verified.** Inside the running container (confirmed via `/proc/mounts` and
+live write-permission tests):
+- `touch firewall/squid.conf`, `docker-compose.yml`, `devcontainer.json`,
+  `initialize.sh`, `development/Dockerfile`, `development/post-create.sh`,
+  `development/post-start.sh` — all fail with "Read-only file system". ✅
+- `touch development/.zshrc` and creating/removing a new file in `development/`
+  — both succeed. ✅
 
 ---
 
@@ -838,7 +847,7 @@ security configuration.  All items in the pass criteria should be green.
 | 4 | 4.2 — Add default Linux tools | — |
 | 5 | 4.3 — Skill / tool guide | — |
 | 6 | 4.4 — Firewall-aware AI tools | — |
-| 7 | 2.1 — Fine-grained .devcontainer mount | 1.1, 1.2 |
+| 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
 | 8 | 3.1 — opencode support | 1.2, 2.1 |
 | 9 | 3.2 — GitHub Copilot SDK | 3.1 |
 | 10 | 3.3 — Copilot CLI support | 3.2 |
