@@ -155,24 +155,43 @@ That's it — try a prompt like `list the files in this repo`.
 
 ## Adding skills and tools
 
-Once you're up and running you can extend Claude Code with **skills** (custom slash commands) and add extra **CLI tools** — in most cases without rebuilding the container.
+Once you're up and running you can extend the agents with **skills** and add extra **CLI tools** — in most cases without rebuilding the container.
 
-### Claude Code skills (custom slash commands)
+### Agent Skills (work in `claude`, `opencode`, and `copilot`)
 
-A skill is a reusable `/command` you invoke inside `claude`. It's just a Markdown file (with optional YAML frontmatter) dropped into a `commands` directory:
+A skill is a directory containing a `SKILL.md` file (Markdown with a small YAML frontmatter — `name` and `description`). All three agents in this container discover skills from the **same project-level location**, so one copy serves everyone:
 
-- **Project-level** — `/workspace/.claude/commands/<name>.md`. Lives in the repo and is shared with everyone who clones it.
-- **User-level** — `~/.claude/commands/<name>.md`. Private to you and **persisted across container rebuilds** (`~/.claude` is a named Docker volume).
+```
+/workspace/.claude/skills/<name>/SKILL.md
+```
 
-Add the file, then start (or restart) `claude` and the matching `/<name>` command is available.
+- **`claude`** reads `.claude/skills/` natively.
+- **`opencode`** reads `.claude/skills/` via its Claude-compat mode (on by default; disabled only if `OPENCODE_DISABLE_CLAUDE_CODE_SKILLS=1`).
+- **`copilot`** lists `.claude/skills/` among its project skill locations.
 
-**Where to find skills:**
+The skill `name` in the frontmatter must be lowercase-kebab-case and match its directory name (opencode enforces this). Add the directory, then start (or restart) the agent — the skill becomes available, and many are invocable as `/<name>`.
 
-- [Anthropic Claude Code docs](https://docs.anthropic.com/en/docs/claude-code) — the built-in commands and the skill/command format.
+> User-level skills also work and **persist across rebuilds**: `~/.claude/skills/` (claude + opencode) or `~/.copilot/skills/` (copilot). Project-level skills in `/workspace/.claude/skills/` are versioned with the repo, which is why the bundled ones below live there.
+
+**Bundled skills.** This repo ships a set of general-purpose productivity skills under `/workspace/.claude/skills/` (from [mattpocock/skills](https://github.com/mattpocock/skills)):
+
+| Skill | What it does |
+|-------|--------------|
+| `caveman` | Ultra-compressed replies — drops filler, keeps technical accuracy (~75% fewer tokens). |
+| `grill-me` | Relentlessly interviews you about a plan/design until every decision is resolved. |
+| `handoff` | Compacts the conversation into a handoff doc so another agent can continue. |
+| `teach` | Teaches a concept across sessions, using the working directory as a stateful workspace. |
+| `write-a-skill` | Scaffolds new skills with proper structure and progressive disclosure. |
+
+**Where to find more skills:**
+
+- [Anthropic Claude Code docs](https://docs.anthropic.com/en/docs/claude-code) — the skill/command format and built-ins.
 - Info Support internal catalogue — _ask your team for the current link (internal GitHub / Confluence); fill it in here once known._
-- Community collections such as the `awesome-claude-code` repositories on GitHub.
+- Community collections such as [`mattpocock/skills`](https://github.com/mattpocock/skills) and the `awesome-claude-code` repositories on GitHub.
 
-> Only add skills from sources you trust — a slash command can run shell commands inside the container.
+> Only add skills from sources you trust — a skill can instruct the agent to run shell commands inside the container.
+
+> **Claude-only custom slash commands.** `claude` also supports single-file slash commands (`/workspace/.claude/commands/<name>.md` or user-level `~/.claude/commands/<name>.md`). These are not read by `copilot` or `opencode` — prefer the `SKILL.md` form above when you want cross-tool behaviour.
 
 ### Installing CLI tools at runtime (no rebuild)
 
