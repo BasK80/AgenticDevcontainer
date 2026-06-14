@@ -123,9 +123,10 @@ Open a terminal in VS Code (`` Ctrl+` ``) — this terminal is **inside** the co
 llm-mode      # prints the active provider
 claude           # starts Claude Code
 opencode         # starts opencode (alternative agentic coding framework)
+copilot          # starts the GitHub Copilot CLI (own auth: copilot → /login)
 ```
 
-Both `claude` and `opencode` share the same provider config — switching with `use-anthropic-key`, `use-foundry`, or `use-anthropic` updates both tools at once.
+Both `claude` and `opencode` share the same provider config — switching with `use-anthropic-key`, `use-foundry`, or `use-anthropic` updates both tools at once. The `copilot` CLI is independent: it authenticates with your GitHub Copilot subscription via `copilot` → `/login` (browser device flow) and ignores the `use-*` switches. See "GitHub Copilot CLI" in [`README.md`](README.md).
 
 If the wrong provider is active, switch it with one of:
 

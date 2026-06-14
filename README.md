@@ -42,7 +42,7 @@ Defines the three services and two networks:
 - `control` — hosts `allow`/`deny`; on `egress` only, not reachable from `development`.
 
 ### `.devcontainer/development/Dockerfile`
-Image for the dev container. Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
+Image for the dev container (base `node:22-bookworm`). Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, the GitHub Copilot CLI (`@github/copilot`), and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
 
 ### `.devcontainer/development/post-create.sh`
 Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `llm-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
@@ -335,6 +335,38 @@ opencode auth list                                   # shows a github-copilot cr
 ```
 
 Then send a prompt in opencode against the selected Copilot model. If a call is blocked, check the firewall block feed from inside the container (`curl -s http://firewall:8099`) and allowlist any missing domain on the host with `fw allow`.
+
+## GitHub Copilot CLI
+
+The image also ships GitHub's GA agentic **Copilot CLI** (npm `@github/copilot`, command `copilot`) as a third agentic coding tool alongside `claude` and `opencode`. It plans, edits, and reviews across sessions, authenticated with your GitHub Copilot subscription via the same **browser device login** as the opencode flow above — no `GITHUB_TOKEN` or API key to manage.
+
+> `copilot` is the GA agentic CLI, **not** the legacy `gh copilot` suggest/explain extension. It has its own auth and is independent of the `use-*` provider switch (which only routes `claude`/`opencode` over Anthropic-compatible endpoints).
+
+### 1. Firewall allowlist — nothing new
+
+The Copilot CLI uses the same domains as the opencode Copilot flow: `github.com/login/device` (device login), `api.github.com` (token exchange), and `*.githubcopilot.com` (inference) — all already in the baseline [`allowlist.default`](.devcontainer/firewall/allowlist.default). A fresh setup needs nothing extra. (Update-check / telemetry domains stay blocked unless a call genuinely requires them.)
+
+### 2. Log in with the browser device flow
+
+```bash
+copilot
+```
+
+Then in the Copilot CLI:
+1. Run `/login` (or `copilot login`). It prints a one-time code and the URL `https://github.com/login/device`.
+2. Open that URL in your **host** browser, enter the code, and authorise (the browser runs on the host with normal internet — only the CLI's polling goes through the container firewall).
+
+> The credential is stored under the home dir (XDG config), which is **not** on a persisted volume — it survives container restarts but not a full rebuild. Re-run `/login` after a rebuild (same caveat as opencode).
+
+### 3. Verify
+
+```bash
+# inside the container
+copilot --version                                    # confirms install on Node 22
+echo "$HTTPS_PROXY"                                  # http://firewall:3128
+```
+
+Then run a small agentic task against a repo file and confirm a response. If a call is blocked, check the firewall block feed from inside the container (`curl -s http://firewall:8099`) and allowlist any genuinely-required domain on the host with `fw allow`.
 
 ## Multi-agent inside this container
 

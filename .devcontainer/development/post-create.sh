@@ -62,7 +62,7 @@ echo "[setup] /workspace added to Claude allowedPaths"
 
 echo ""
 echo "┌──────────────────────────────────────────────────────────────┐"
-echo "│  AI tools:  claude (Claude Code)  ·  opencode              │"
+echo "│  AI tools:  claude (Claude Code)  ·  opencode  ·  copilot    │"
 echo "│                                                              │"
 echo "│  Switch LLM provider at any time:                          │"
 echo "│    use-anthropic-key → Anthropic API key (default)            │"

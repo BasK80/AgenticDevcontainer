@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:22-bookworm
 
 ARG USER_UID=1000
 ARG USER_GID=1000
@@ -112,6 +112,9 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # opencode — alternative agentic coding framework.
 RUN npm install -g opencode-ai
+
+# GitHub Copilot CLI — GA agentic coding tool (browser device login).
+RUN npm install -g @github/copilot
 
 # NODE_PATH points at the system-wide npm root so any Node binary — including
 # VS Code Server's bundled node — can resolve `global-agent` when the shim

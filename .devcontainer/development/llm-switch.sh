@@ -20,6 +20,11 @@
 # opencode reads its provider config from ~/.config/opencode/opencode.json.
 # The use-anthropic-key and use-foundry functions keep this file in sync.
 #
+# NOTE: The GitHub Copilot CLI (`copilot`) is a standalone agentic tool with
+# its own auth — it does NOT use these `use-*` switches. Authenticate it
+# separately with `copilot` → `/login` (browser device flow). See the
+# "GitHub Copilot CLI" section in README.md.
+#
 # All `use-*` commands rewrite ~/.claude/settings.json AND export/unset
 # the relevant environment variables in the current shell so the next
 # `claude` invocation picks them up.
