@@ -60,16 +60,4 @@ jq --arg p /workspace \
    "$SETTINGS" > "${SETTINGS}.tmp" && mv "${SETTINGS}.tmp" "$SETTINGS"
 echo "[setup] /workspace added to Claude allowedPaths"
 
-echo ""
-echo "┌──────────────────────────────────────────────────────────────┐"
-echo "│  AI tools:  claude (Claude Code)  ·  opencode  ·  copilot    │"
-echo "│                                                              │"
-echo "│  Switch LLM provider at any time:                          │"
-echo "│    use-anthropic-key → Anthropic API key (default)            │"
-echo "│    use-foundry       → Azure AI Foundry (run az login)        │"
-echo "│    use-anthropic     → Anthropic OAuth (Claude subscription)  │"
-echo "│    llm-mode          → show active provider                   │"
-echo "└──────────────────────────────────────────────────────────────┘"
-# ─────────────────────────────────────────────────────────────────────────
-
 echo "[post-create] done."

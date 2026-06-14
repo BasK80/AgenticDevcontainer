@@ -428,10 +428,23 @@ stays open. `presentation` is configured to always reveal a new, focused panel.
 > per-platform with the task's `linux`/`windows`/`osx` keys: `exec zsh -l` runs
 > only on Linux (the container); Windows and macOS hosts get a no-op `exit 0`.
 
+> **Refinement 3 (post-implementation).** The AI-tools / provider-switch banner
+> was *moved out* of `post-create.sh` into a dedicated
+> `.devcontainer/development/show-banner.sh`, which the attach task runs just
+> before `exec`ing the login shell (`bash .devcontainer/development/show-banner.sh; exec zsh -l`).
+> Rationale: `post-create.sh` runs only once at container *creation* and logs to
+> the creation output, so the banner was invisible on ordinary (re)attaches. As
+> part of the same refinement, `.vscode/tasks.json` is now bind-mounted
+> **read-only** (a `../.vscode/tasks.json:...:ro` entry in `docker-compose.yml`):
+> the file auto-executes a command on every folder open, so locking it read-only
+> inside the container removes it as an in-container code-execution vector. It is
+> therefore edited from the host like the other perimeter files.
+
 - Chose the `.vscode/tasks.json` route (the plan's recommendation) over a
   `devcontainer.json` `postAttachCommand`: the task file lives in `/workspace`,
-  so it's writable from inside the container and takes effect on the next folder
-  open with **no rebuild or reattach**. `postAttachCommand` would have required
+  so it was writable from inside the container and took effect on the next folder
+  open with **no rebuild or reattach** (later locked read-only — see Refinement 3).
+  `postAttachCommand` would have required
   a host-side edit to the read-only `devcontainer.json`, and its output only
   shows in the notification area — it does not open a terminal panel.
 - On first open VS Code prompts to **"Allow Automatic Tasks"**; once allowed

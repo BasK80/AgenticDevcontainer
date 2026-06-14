@@ -55,6 +55,7 @@ services:
       - "../.devcontainer/devcontainer.json:/workspace/.devcontainer/devcontainer.json:ro"
       - "../.devcontainer/.env:/workspace/.devcontainer/.env:ro"
       - "../.devcontainer/initialize.sh:/workspace/.devcontainer/initialize.sh:ro"
+      - "../.vscode/tasks.json:/workspace/.vscode/tasks.json:ro"
       - "claude:/home/devuser/.claude"
       - "claude-json:/home/devuser/.claude-json"
       - "history:/commandhistory"
