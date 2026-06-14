@@ -2,8 +2,15 @@
 # a direct Anthropic API key, or the Anthropic OAuth flow (Claude subscription).
 #
 # Sourced from ~/.zshrc by post-create.sh. Defines commands:
+# DEFAULT: use-anthropic — Claude on an Anthropic subscription (OAuth). It is
+# selected out of the box and carries no static key on disk for an agent to
+# read. use-foundry (Entra) is the keyless alternative; use-anthropic-key is a
+# static-credential fallback you must opt into. See "Choosing a provider" in
+# README.md.
+#
 #   use-anthropic-key  route Claude through the Anthropic API using an API key
-#                      (ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL) — DEFAULT
+#                      (ANTHROPIC_API_KEY + ANTHROPIC_BASE_URL) — static fallback,
+#                      no longer auto-selected; opt in explicitly
 #                      opencode: ✅ fully configured automatically
 #   use-foundry        route Claude through Azure AI Foundry
 #                      opencode: ✅ configured via Azure provider — first time

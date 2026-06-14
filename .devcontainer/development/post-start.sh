@@ -59,10 +59,13 @@ source /workspace/.devcontainer/development/llm-switch.sh
 if [[ -f "$HOME/.llm-provider" ]]; then
     _llm_apply_persisted
     echo "[setup] Restored provider: $(< "$HOME/.llm-provider")"
-elif [[ -n "${ANTHROPIC_API_KEY:-}" ]] && [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" != "1" ]]; then
-    # No choice recorded yet, but a key is available — default to API-key mode.
-    use-anthropic-key >/dev/null
-    echo "[setup] Defaulted provider: Anthropic API key"
+elif [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
+    use-foundry >/dev/null
+    echo "[setup] Defaulted provider: Azure AI Foundry"
+else
+    # No choice recorded yet — default to Claude on an Anthropic subscription.
+    use-anthropic >/dev/null
+    echo "[setup] Defaulted provider: Claude (Anthropic subscription, OAuth)"
 fi
 
 echo "[post-start] done."

@@ -33,9 +33,10 @@ if [[ -f "$SWITCH_SRC" ]] && ! grep -q "llm-switch.sh" "$ZSHRC" 2>/dev/null; the
 fi
 
 # Pick a default provider on first creation:
-#   - Foundry if CLAUDE_CODE_USE_FOUNDRY=1
-#   - Anthropic API key otherwise (the default; requires ANTHROPIC_API_KEY)
-#   - Falls back to Anthropic OAuth if no API key is present
+#   - Foundry if CLAUDE_CODE_USE_FOUNDRY=1 (explicit opt-in)
+#   - Claude on an Anthropic subscription (use-anthropic, OAuth) otherwise — the
+#     default. A static ANTHROPIC_API_KEY no longer auto-selects key mode; run
+#     `use-anthropic-key` to opt in. See README "Choosing a provider".
 SETTINGS="$HOME/.claude/settings.json"
 if [[ ! -f "$SETTINGS" ]]; then
     # shellcheck disable=SC1090
@@ -43,12 +44,9 @@ if [[ ! -f "$SETTINGS" ]]; then
     if [[ "${CLAUDE_CODE_USE_FOUNDRY:-0}" == "1" ]]; then
         use-foundry >/dev/null
         echo "[setup] Default provider: Azure AI Foundry"
-    elif [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-        use-anthropic-key >/dev/null
-        echo "[setup] Default provider: Anthropic API key (base: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com})"
     else
         use-anthropic >/dev/null
-        echo "[setup] Default provider: Anthropic OAuth (no ANTHROPIC_API_KEY in env)"
+        echo "[setup] Default provider: Claude (Anthropic subscription, OAuth)"
     fi
 else
     echo "[setup] $SETTINGS already exists — leaving provider settings as-is"

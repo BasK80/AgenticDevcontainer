@@ -61,10 +61,12 @@ Image for the dev container (base `node:24-bookworm`). Installs a baseline of CL
 Runs **once** after first container creation. Generic hook for project setup (dependency install, first-run config — commented templates included). Registers `llm-switch.sh` in `~/.zshrc` and seeds `~/.claude/settings.json`.
 
 ### `.devcontainer/development/post-start.sh`
-Runs on **every** container start (including after rebuilds). Symlinks `~/.claude.json` into the persistent `~/.claude` volume so Claude Code config survives rebuilds, re-applies the Azure CLI browser-login flag (`core.login_experience_v2=on`), and restores the active LLM provider from `~/.llm-provider` (or defaults to `use-anthropic-key`) so a deliberate provider switch sticks across restarts.
+Runs on **every** container start (including after rebuilds). Symlinks `~/.claude.json` into the persistent `~/.claude` volume so Claude Code config survives rebuilds, re-applies the Azure CLI browser-login flag (`core.login_experience_v2=on`), and restores the active LLM provider from `~/.llm-provider` (or defaults to `use-anthropic` — Claude on an Anthropic subscription) so a deliberate provider switch sticks across restarts.
 
 ### `.devcontainer/development/llm-switch.sh`
-Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `llm-mode` shell commands for switching the active LLM provider. Each command configures both Claude Code (`~/.claude/settings.json`) and opencode (`~/.config/opencode/opencode.json`) so both tools stay in sync. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
+Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `llm-mode` shell commands for switching the active LLM provider. Each command configures both Claude Code (`~/.claude/settings.json`) and opencode (`~/.config/opencode/opencode.json`) so both tools stay in sync.
+
+The **default is Claude on an Anthropic subscription** (`use-anthropic`, OAuth) — see [Choosing a provider](#choosing-a-provider) for the security rationale. `use-foundry` (Azure Entra) is the keyless alternative; API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the static-credential fallback and must be selected explicitly with `use-anthropic-key`.
 
 The chosen provider is recorded in `~/.llm-provider` and re-applied automatically in new terminals and after rebuilds (`post-start.sh`), so a deliberate switch sticks even though the container keeps `ANTHROPIC_API_KEY` in the environment. For OAuth that means the leaked key is actively unset in each new shell. **Note:** Claude Code builds the `/model` list once at startup from the active provider — restart `claude` after switching to refresh the available models (e.g. the larger set offered by the OAuth subscription).
 
@@ -99,7 +101,7 @@ Host-side helper scripts. `setup-host-secrets.sh` persists `ANTHROPIC_API_KEY` /
    - `.gitattributes` — forces `eol=lf` on `*.sh`; without it a Windows host can save the lifecycle/firewall scripts with CRLF and they fail inside the Linux container. If your repo already has one, just add the `*.sh text eol=lf` line.
    - Make sure your `.gitignore` keeps `*.env` out of git — `.devcontainer/.env` can hold your API key.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
-3. First build: a few minutes (three images). Subsequent starts: seconds. On first create the provider defaults to the Anthropic API key when one is present on the host (otherwise switch later with the `use-*` commands).
+3. First build: a few minutes (three images). Subsequent starts: seconds. **Default auth: Claude on an Anthropic subscription** (`use-anthropic`, OAuth) — selected out of the box; run `claude login` when prompted. See [Choosing a provider](#choosing-a-provider) for why this is the default and how to switch to Azure Foundry or a static API key.
 4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once) and greets you with a banner of the available agents. Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
 
 ### Manage the allowlist from the host
@@ -187,9 +189,29 @@ feature-granted domain with `fw deny` is refused and points you at
 - Each blocked request shows up as a `403` proxy error in your tools.
 - Read-only recent-blocks feed: `curl -s http://firewall:8099`
 
-## Anthropic API key (default provider)
+## Choosing a provider
 
-When `ANTHROPIC_API_KEY` is exported on the host at the time you open the container, the dev container picks `use-anthropic-key` as the default provider on first create. The key (and an optional `ANTHROPIC_BASE_URL`) is passed in via `initializeCommand` → `.devcontainer/.env` → the `development` service `environment` block in [docker-compose.yml](.devcontainer/docker-compose.yml). `.env` is gitignored, but the key is still readable by anything that can run `docker inspect` on the container — do not use a key you wouldn't put on disk.
+**Default: Claude on an Anthropic subscription (`use-anthropic`, OAuth).** This is what the container selects out of the box — no API key required and no long-lived secret on disk. Sign in once with `claude login` when prompted.
+
+- Prefer Azure AI Foundry? → `use-foundry` + `az login` (Entra ID), or set `CLAUDE_CODE_USE_FOUNDRY=1` before opening the container. Also keyless: a short-lived Entra token instead of a static key.
+- Using Copilot (via the [Copilot CLI](#github-copilot-cli) or [opencode](#github-copilot-opencode))? → already a browser **device-flow OAuth** login — no API key to manage.
+- Reserve the [static Anthropic API key](#anthropic-api-key-static-key-fallback) for environments where none of the above is available. It is no longer auto-selected — run `use-anthropic-key` explicitly to opt in.
+
+### Why a subscription / OAuth is the default
+
+This container is hardened (default-deny egress, non-root, project-scoped state) precisely because an agentic coding tool runs partly-untrusted input — prompt injection from a web page, a malicious dependency, a poisoned file in the repo. The realistic threat is **an agent being steered into reading a credential off disk and exfiltrating it.** That reframes the question from "is my key encrypted" to "can the agent read a credential that stays valid after it leaks":
+
+- **A static `ANTHROPIC_API_KEY` is the worst case.** It is long-lived (valid until you manually rotate it), and to feed all three tools it ends up in plaintext in *four* readable places: the process environment (`docker inspect`, `/proc/*/environ`), `.devcontainer/.env`, `~/.claude/settings.json`, and `~/.config/opencode/opencode.json`. Anything the agent can execute can `cat` it, and once leaked it keeps working.
+- **An Anthropic subscription (`use-anthropic`, OAuth) carries no static key.** Auth is an OAuth credential scoped to your account and revocable from it, and `llm-switch.sh` actively *unsets* any container-wide `ANTHROPIC_API_KEY` in every new shell while you're in this mode, so a stray key can't silently win.
+- **Entra (`az login`, Foundry) stores no static key either.** Auth is a short-lived token (~1h) tied to your Azure identity, refreshed on demand and revocable centrally by your org. A leaked token expires on its own.
+
+The firewall already blocks most exfiltration routes, but not having a durable, plaintext, never-expiring secret on disk in the first place is the defense-in-depth that doesn't depend on the egress filter holding. Use the subscription (or Entra); fall back to a static key only when you must, and treat it as disposable (short rotation, never a key you wouldn't put on disk).
+
+## Anthropic API key (static-key fallback)
+
+> Prefer OAuth / Entra where available — see [Choosing a provider](#choosing-a-provider) for why. Use this path only when neither is an option.
+
+When `ANTHROPIC_API_KEY` is exported on the host at the time you open the container, the dev container picks `use-anthropic-key` as the provider on first create. The key (and an optional `ANTHROPIC_BASE_URL`) is passed in via `initializeCommand` → `.devcontainer/.env` → the `development` service `environment` block in [docker-compose.yml](.devcontainer/docker-compose.yml). `.env` is gitignored, but the key is still readable by anything that can run `docker inspect` on the container — do not use a key you wouldn't put on disk.
 
 The firewall already allows `api.anthropic.com`. If you point `ANTHROPIC_BASE_URL` at a custom host (proxy, gateway), add it to the allowlist: `docker exec "$FW" fw allow your-gateway.example.com`.
 
@@ -253,7 +275,7 @@ What it does:
 - Writes them to `~/.devcontainer-secrets` on the host with `chmod 600`. This file lives outside the repo and is never committed.
 - Patches [`.devcontainer/initialize.sh`](.devcontainer/initialize.sh) (idempotently — it skips if already patched) to `source ~/.devcontainer-secrets` early. Because `initialize.sh` runs as the `initializeCommand` on every container start, the secrets are re-exported on the host side of `initialize.sh` for each rebuild — so the value flows into the container via the normal `initializeCommand → .env → docker-compose` passthrough without you having to keep it exported in your launching shell.
 
-**Why it exists:** a full rebuild that removes the named Docker volume wipes `~/.claude/settings.json`, and a fresh login shell may not have `ANTHROPIC_API_KEY` exported. Storing the secret once on the host means the key is restored automatically on every rebuild (`post-start.sh` re-applies `use-anthropic-key` when it sees the variable). After running the script once, just rebuild the container.
+**Why it exists:** a full rebuild that removes the named Docker volume wipes `~/.claude/settings.json`, and a fresh login shell may not have `ANTHROPIC_API_KEY` exported. Storing the secret once on the host means the key is available on every rebuild. Note the default provider is now the Anthropic subscription (`use-anthropic`), so a stored key is **not** auto-selected — run `use-anthropic-key` once in the container to switch to it (the choice then persists via `~/.llm-provider`). After running the script once, just rebuild the container.
 
 > Security note: `~/.devcontainer-secrets` holds the key in plaintext on the host (mode `600`). Anyone who can read your home directory or the Docker daemon can read it — same trust model as the named-volume storage below.
 
@@ -277,7 +299,7 @@ Notes:
 
 ## Azure AI Foundry overlay
 
-This repo is currently configured to route Claude Code through Azure AI Foundry by default. Update the resource values below to match your environment.
+Azure AI Foundry is the **keyless alternative** to the default Anthropic-subscription provider — opt in with `use-foundry` (or set `CLAUDE_CODE_USE_FOUNDRY=1` before opening the container). Like the subscription default, it avoids a static key on disk: Entra (`az login`) authenticates with a short-lived, revocable token (see [Choosing a provider](#choosing-a-provider)). Update the resource values below to match your environment.
 
 ### 1. Firewall - add your resource endpoints to the allowlist
 
@@ -375,8 +397,8 @@ grep -Ei 'localhost|127\.0\.0\.1|redirect' /tmp/az-login-debug.log | tail -30
 
 Two options, both clear the Foundry env vars and rewrite `~/.claude/settings.json`:
 
-- `use-anthropic-key` — use a direct Anthropic API key. Requires `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`) to be present in the container env — see [Anthropic API key (default provider)](#anthropic-api-key-default-provider) for host-side setup. **Default on first create when the key is set.**
-- `use-anthropic` — use the OAuth login flow (Claude subscription). Launches `claude login` on first use.
+- `use-anthropic` — use the OAuth login flow (Claude subscription). Launches `claude login` on first use. **Preferred** — no static key on disk (see [Choosing a provider](#choosing-a-provider)).
+- `use-anthropic-key` — use a direct Anthropic API key (static-key fallback). Requires `ANTHROPIC_API_KEY` (and optionally `ANTHROPIC_BASE_URL`) to be present in the container env — see [Anthropic API key (static-key fallback)](#anthropic-api-key-static-key-fallback) for host-side setup. Auto-selected on first create only when the key is set.
 
 ## GitHub Copilot (opencode)
 
