@@ -420,7 +420,19 @@ pipx install <tool>       # installs to ~/.local (survives restarts, lost on ful
 
 The relevant package registry (npmjs.com, pypi.org, …) must be on the firewall allowlist first — see [Manage the allowlist from the host](#manage-the-allowlist-from-the-host).
 
-For **Claude Code skills/commands** (where to find them and how to install them as `/command` Markdown files), see the "Adding skills and tools" section in [`USAGE.md`](USAGE.md). The image intentionally ships no skills — they are too volatile to bake in.
+### Bundled skills
+
+The image ships **five productivity [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills)** under project-level `.claude/skills/` — chosen because they are broadly useful and stable enough to bake in. A single copy serves all three agents: Claude Code reads it natively, opencode via Claude-compat (on by default), and the Copilot CLI lists `.claude/skills/` among its project skill locations.
+
+| Skill | What it does |
+|---|---|
+| `caveman` | Ultra-compressed replies — cuts token use ~75% by dropping filler while keeping technical accuracy. |
+| `grill-me` | Interviews you about a plan or design until every branch of the decision is resolved. |
+| `handoff` | Compacts the conversation into a handoff document another agent can pick up. |
+| `teach` | Teaches a new skill or concept within the workspace. |
+| `write-a-skill` | Scaffolds new Agent Skills with proper structure and progressive disclosure. |
+
+For where to find **more** skills and how to add your own (skills are `SKILL.md` directories; Claude-only `/command` slash commands live in `.claude/commands/`), see the "Adding skills and tools" section in [`USAGE.md`](USAGE.md).
 
 ## Reducing permission prompts
 
