@@ -2,3 +2,6 @@
 *.env
 *.env.local
 node_modules/
+
+# Personal, per-checkout Claude Code permission overrides (any directory)
+**/.claude/settings.local.json
