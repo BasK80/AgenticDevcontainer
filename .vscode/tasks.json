@@ -1,7 +1,6 @@
 {
   // Auto-open an integrated terminal when the workspace folder opens, so users
   // can interact with the container without manually opening a terminal panel.
-  // Step 4.1 of FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md.
   //
   // VS Code prompts to "Allow Automatic Tasks" on first open; once allowed the
   // terminal opens on every subsequent attach. The task prints the AI-tools

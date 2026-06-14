@@ -38,6 +38,12 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 
 **No Docker socket.** `/var/run/docker.sock` is not mounted. Mounting it is a one-line host root escalation.
 
+**VS Code extensions are a trust boundary — vet them.** An extension is code that runs automatically, and the two execution locations have very different blast radii:
+- **Workspace extensions** run *inside* this container as `devuser`, so they are subject to the firewall (they cannot reach a non-allowlisted host). But they auto-execute on attach and can read anything `devuser` can — `ANTHROPIC_API_KEY`, `~/.claude/settings.json`, your workspace — and a malicious one could tunnel that data out over an **allowlisted** domain (the marketplace, a CDN, or `github.com` if that feature-set is on). The firewall narrows the exfil channel; it does not close it.
+- **UI / host extensions** run on the **host**, entirely outside this container and its firewall. A malicious host extension is a host compromise and is **not** contained by anything here.
+
+Mitigations: pin a reviewed set in `devcontainer.json` (`customizations.vscode.extensions` — host-controlled and read-only in the container, so an in-container agent can't add to it); keep the allowlist minimal (disable [feature-sets](#configuring-the-allowlist-feature-sets) you don't use, to shrink the exfil surface); and treat `~/.vscode-server/extensions` as throwaway — it's on the writable layer, so a rebuild clears any extension dropped at runtime. The `/security-test` skill (Test 12) probes the in-container portion of this surface; host extensions remain your responsibility to vet.
+
 **Project-scoped volumes.** All persistent state (Claude config, caches, history) lives in named Docker volumes prefixed with the project directory name. Separate projects = separate volumes.
 
 ## File guide

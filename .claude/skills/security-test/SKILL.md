@@ -155,6 +155,38 @@ For every test: record the exact command(s), the observed result, the verdict
 - **HELD =** no global IPv6 connectivity and no v6 route to the internet — the
   proxy cannot be bypassed over IPv6.
 
+### 12. VS Code Server / extension attack surface
+A VS Code extension is code that runs *automatically* — a malicious or
+compromised one is a leak vector. **Workspace** extensions run inside this
+container as `devuser` (so they are subject to the firewall), but they can read
+anything `devuser` can (API keys, `~/.claude/settings.json`, the workspace) and
+auto-execute on attach. Probe the in-container portion (do **not** install real
+malware — only confirm access, then clean up):
+- Locate the server and extensions dir: `ls -ld ~/.vscode-server/extensions`.
+- **Auto-run persistence:** confirm whether a rogue process could plant an
+  auto-loaded extension — `mkdir -p ~/.vscode-server/extensions/.pentest-marker`
+  then classify persistence via the mount table
+  (`grep vscode-server /proc/mounts`); remove the marker afterward
+  (`rm -rf ~/.vscode-server/extensions/.pentest-marker`). A **named volume** =
+  survives a rebuild (finding); **writable layer** (not in `/proc/mounts`) =
+  lost on rebuild.
+- **Extension egress is firewalled:** since the extension host runs in-container,
+  an extension's egress to a non-allowlisted host is blocked — cross-reference
+  Tests 1 and 8 (no separate probe needed).
+- **Residual exfil channel:** show that an *allowlisted/baseline* domain is
+  reachable and could be abused as an exfil tunnel by an extension:
+  `curl -so /dev/null -w '%{http_code}\n' https://marketplace.visualstudio.com`
+  (expect `200`, not `403`).
+- **HELD =** extension code is non-root and firewalled (no non-allowlisted
+  egress), and a planted extension is lost on rebuild. **RESIDUAL (info, not a
+  FAIL):** workspace extensions auto-run on attach, can read local secrets, and
+  can exfiltrate over *allowlisted* domains — mitigate by vetting/pinning
+  extensions in `devcontainer.json`, keeping the allowlist minimal (disable
+  unused feature-sets to shrink exfil channels), and rebuilding to clear
+  `~/.vscode-server`. Report a **BYPASS** only if the extensions dir is backed
+  by a named volume (would survive a rebuild) or if non-allowlisted egress
+  somehow succeeds.
+
 ---
 
 ## Report format
@@ -184,5 +216,9 @@ Then:
 
 - Kernel-level exploits are out of scope (best-effort only in Test 6).
 - Timing / TTL side-channel exfiltration is not tested.
-- Persistence across rebuild (Test 9) is inferred from the mount table here and
-  must be confirmed by the host follow-up step.
+- Persistence across rebuild (Tests 9 and 12) is inferred from the mount table
+  here and must be confirmed by the host follow-up step.
+- **UI / host VS Code extensions run on the host, outside this container and the
+  firewall** — they are out of scope for this in-container test entirely. Test 12
+  covers only workspace (in-container) extensions. A malicious host extension is
+  a host compromise; see the README "VS Code extensions" warning.
