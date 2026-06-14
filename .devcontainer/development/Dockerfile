@@ -120,9 +120,7 @@ RUN npm install -g @github/copilot
 # VS Code Server's bundled node — can resolve `global-agent` when the shim
 # preloads it. Set AFTER all build-time `npm`/`node` invocations so the
 # preload file is guaranteed to exist when it's referenced.
-ENV NODE_PATH=/usr/local/lib/node_modules \
-    GLOBAL_AGENT_HTTP_PROXY=http://firewall:3128 \
-    NODE_OPTIONS=-r\ /usr/local/lib/global-agent-bootstrap.js
+ENV NODE_PATH=/usr/local/lib/node_modules
 
 COPY --chown=devuser:devuser .zshrc /home/devuser/.zshrc
 

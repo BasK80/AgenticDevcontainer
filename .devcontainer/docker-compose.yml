@@ -43,8 +43,6 @@ services:
       https_proxy: http://firewall:3128
       NO_PROXY:  localhost,127.0.0.1,firewall
       no_proxy:  localhost,127.0.0.1,firewall
-      GLOBAL_AGENT_HTTP_PROXY: http://firewall:3128
-      NODE_OPTIONS: "-r /usr/local/lib/global-agent-bootstrap.js"
     volumes:
       - "..:/workspace:cached"
       - "../.devcontainer/development:/workspace/.devcontainer/development"
