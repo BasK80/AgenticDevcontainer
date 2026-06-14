@@ -46,6 +46,12 @@ Mitigations: pin a reviewed set in `devcontainer.json` (`customizations.vscode.e
 
 **Project-scoped volumes.** All persistent state (Claude config, caches, history) lives in named Docker volumes prefixed with the project directory name. Separate projects = separate volumes.
 
+## Validating the perimeter
+
+The bundled **`security-test`** skill turns the measures above into a repeatable, adversarial check. Run it from any of the three agents inside the container — `/security-test` in Claude Code, or "run the pentest" in opencode / the Copilot CLI — and it works through a fixed set of escape, exfiltration, and tamper probes (direct egress bypass, host-filesystem reads, Docker-host and control-container reachability, perimeter-config and allowlist/policy tamper, privilege/namespace escape, credential exfiltration via a harmless canary, persistent installs, mail sending, IPv6 bypass, and the VS Code extension surface).
+
+Verdict semantics are inverted on purpose: a **blocked** attempt is a pass (the perimeter **HELD**); an attempt that **gets through** is a **BYPASS** finding. The skill prints a per-test table, an overall PASS/FAIL, and a list of host follow-ups it can't perform itself (e.g. confirming a runtime install is gone after a rebuild). Approve the probe commands when the agent asks, and watch the [block feed](#see-blocks-from-inside-the-dev-container) (`curl -s http://firewall:8099`) or the [dashboard](#web-dashboard-localhost-only) while it runs. Re-run it after any change to the container's security configuration.
+
 ## File guide
 
 ### `.devcontainer/devcontainer.json`
@@ -89,7 +95,7 @@ Squid image: `squid.conf` (ACL + the firewall-aware `deny_info` error page), `fe
 Out-of-band management plane, unreachable from `development`. Holds the policy volume, the web dashboard (`dashboard.py`), and the management scripts it calls (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`). These scripts write to the same shared `policy` volume as the firewall container's `fw` script, so the dashboard and the CLI are always in sync.
 
 ### `.claude/skills/`
-Five bundled productivity Agent Skills shared by all three agents — see [Bundled skills](#bundled-skills).
+Six bundled Agent Skills shared by all three agents — see [Bundled skills](#bundled-skills).
 
 ### `CLAUDE.md` & `AGENTS.md`
 Project-level agent guides carrying the **firewall-awareness note** (the network topology and how to request allowlist additions), read automatically by Claude Code (`CLAUDE.md`) and opencode (`AGENTS.md`). Portable: copy into any project so its agents understand the default-deny network instead of misreading a blocked request as a connectivity failure.
@@ -543,7 +549,7 @@ The relevant package registry (npmjs.com, pypi.org, …) must be on the firewall
 
 ### Bundled skills
 
-The image ships **five productivity [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills)** under project-level `.claude/skills/` — chosen because they are broadly useful and stable enough to bake in. A single copy serves all three agents: Claude Code reads it natively, opencode via Claude-compat (on by default), and the Copilot CLI lists `.claude/skills/` among its project skill locations.
+The image ships **six bundled [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills)** under project-level `.claude/skills/` — five general-purpose productivity skills plus one security-validation skill, all broadly useful and stable enough to bake in. A single copy serves all three agents: Claude Code reads it natively, opencode via Claude-compat (on by default), and the Copilot CLI lists `.claude/skills/` among its project skill locations.
 
 | Skill | What it does |
 |---|---|
@@ -552,6 +558,7 @@ The image ships **five productivity [Agent Skills](https://docs.claude.com/en/do
 | `handoff` | Compacts the conversation into a handoff document another agent can pick up. |
 | `teach` | Teaches a new skill or concept within the workspace. |
 | `write-a-skill` | Scaffolds new Agent Skills with proper structure and progressive disclosure. |
+| `security-test` | Adversarial pentest of the container perimeter — runs escape / exfiltration / tamper probes from inside the container and reports HELD (blocked = good) / BYPASS (finding) per test. Trigger with `/security-test` (or "run the pentest"). See [Validating the perimeter](#validating-the-perimeter). |
 
 For where to find **more** skills and how to add your own (skills are `SKILL.md` directories; Claude-only `/command` slash commands live in `.claude/commands/`), see the "Adding skills and tools" section in [`USAGE.md`](USAGE.md).
 
