@@ -96,6 +96,8 @@ Host-side helper scripts. `setup-host-secrets.sh` persists `ANTHROPIC_API_KEY` /
    - `.claude/skills/` — the [bundled skills](#bundled-skills).
    - `CLAUDE.md` / `AGENTS.md` — the firewall-awareness note for Claude Code / opencode (merge into your own if you already have these files).
    - `tools/setup-host-secrets.sh` — host-side API-key persistence (see [Store the key on the host](#store-the-key-on-the-host-with-the-helper-script)).
+   - `.gitattributes` — forces `eol=lf` on `*.sh`; without it a Windows host can save the lifecycle/firewall scripts with CRLF and they fail inside the Linux container. If your repo already has one, just add the `*.sh text eol=lf` line.
+   - Make sure your `.gitignore` keeps `*.env` out of git — `.devcontainer/.env` can hold your API key.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds. On first create the provider defaults to the Anthropic API key when one is present on the host (otherwise switch later with the `use-*` commands).
 4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once) and greets you with a banner of the available agents. Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
