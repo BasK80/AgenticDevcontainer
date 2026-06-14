@@ -43,7 +43,10 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 ## File guide
 
 ### `.devcontainer/devcontainer.json`
-VS Code dev-container orchestration. Points at `docker-compose.yml`, selects `development` as the attach target, declares the post-create hook, and runs an `initializeCommand` on the host that writes `.devcontainer/.env` (per-project naming + host env passthrough).
+VS Code dev-container orchestration. Points at `docker-compose.yml`, selects `development` as the attach target, and wires the three lifecycle hooks: `initializeCommand` → [`initialize.sh`](#devcontainerinitializesh) (host), `postCreateCommand` → [`post-create.sh`](#devcontainerdevelopmentpost-createsh) (once), and `postStartCommand` → [`post-start.sh`](#devcontainerdevelopmentpost-startsh) (every start).
+
+### `.devcontainer/initialize.sh`
+Runs on the **host** before Compose starts. Writes `.devcontainer/.env` with project-scoped container/volume names and optional host-env passthrough (`ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_OAUTH_TOKEN` — only emitted when set, so an empty value never masks a key persisted in the container). Sources `~/.devcontainer-secrets` if present (see [the host-secrets helper](#store-the-key-on-the-host-with-the-helper-script)).
 
 ### `.devcontainer/docker-compose.yml`
 Defines the three services and two networks:
@@ -52,28 +55,40 @@ Defines the three services and two networks:
 - `control` — hosts `allow`/`deny`; on `egress` only, not reachable from `development`.
 
 ### `.devcontainer/development/Dockerfile`
-Image for the dev container (base `node:24-bookworm`). Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, the GitHub Copilot CLI (`@github/copilot`), and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
+Image for the dev container (base `node:24-bookworm`). Installs a baseline of CLI tools (see [Adding tools](#adding-tools-to-the-development-container)), Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, the GitHub Copilot CLI (`@github/copilot`), and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
 
 ### `.devcontainer/development/post-create.sh`
-Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `llm-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
+Runs **once** after first container creation. Generic hook for project setup (dependency install, first-run config — commented templates included). Registers `llm-switch.sh` in `~/.zshrc` and seeds `~/.claude/settings.json`.
+
+### `.devcontainer/development/post-start.sh`
+Runs on **every** container start (including after rebuilds). Symlinks `~/.claude.json` into the persistent `~/.claude` volume so Claude Code config survives rebuilds, re-applies the Azure CLI browser-login flag (`core.login_experience_v2=on`), and restores the active LLM provider from `~/.llm-provider` (or defaults to `use-anthropic-key`) so a deliberate provider switch sticks across restarts.
 
 ### `.devcontainer/development/llm-switch.sh`
 Defines `use-anthropic-key` / `use-foundry` / `use-anthropic` / `llm-mode` shell commands for switching the active LLM provider. Each command configures both Claude Code (`~/.claude/settings.json`) and opencode (`~/.config/opencode/opencode.json`) so both tools stay in sync. The API-key mode (`ANTHROPIC_API_KEY` + `ANTHROPIC_BASE_URL`) is the default.
 
 The chosen provider is recorded in `~/.llm-provider` and re-applied automatically in new terminals and after rebuilds (`post-start.sh`), so a deliberate switch sticks even though the container keeps `ANTHROPIC_API_KEY` in the environment. For OAuth that means the leaked key is actively unset in each new shell. **Note:** Claude Code builds the `/model` list once at startup from the active provider — restart `claude` after switching to refresh the available models (e.g. the larger set offered by the OAuth subscription).
 
+### `.devcontainer/development/.zshrc` & `show-banner.sh`
+`.zshrc` is the container shell config (writable, so you can tweak it in-container). `show-banner.sh` prints the AI-tools welcome banner (available agents + provider-switch commands); it is run by the auto-open terminal task just before it hands over to an interactive shell.
+
+### `.vscode/tasks.json`
+A `folderOpen` task ("Open terminal on attach") that auto-opens a focused `zsh` terminal in the container, prints the banner, then `exec`s a login shell. VS Code asks to "Allow Automatic Tasks" once. Scoped to Linux — a no-op when the folder is opened on a Windows/macOS host.
+
 ### `.devcontainer/firewall/`
-Squid image: `squid.conf` (ACL), `allowlist.default` (baked-in default domain list), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
+Squid image: `squid.conf` (ACL + the firewall-aware `deny_info` error page), `allowlist.default` (baked-in default domain list), `ERR_FIREWALL_BLOCKED` (the plain-text page served on a blocked request), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
 
 ### `.devcontainer/control/`
-Out-of-band management plane, unreachable from `development`. Holds the policy volume and the management scripts called by the web dashboard (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`). These scripts write to the same shared `policy` volume as the firewall container's `fw` script, so the dashboard and the CLI are always in sync.
+Out-of-band management plane, unreachable from `development`. Holds the policy volume, the web dashboard (`dashboard.py`), and the management scripts it calls (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`). These scripts write to the same shared `policy` volume as the firewall container's `fw` script, so the dashboard and the CLI are always in sync.
+
+### `.claude/skills/`
+Five bundled productivity Agent Skills shared by all three agents — see [Bundled skills](#bundled-skills).
 
 ## How to use
 
-1. Drop `.devcontainer/` into your project root.
+1. Copy `.devcontainer/` into your project root. Optionally also copy `.vscode/tasks.json` (auto-opens a terminal on attach) and `.claude/skills/` (the [bundled skills](#bundled-skills)).
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
-3. First build: a few minutes (three images). Subsequent starts: seconds.
-4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once). Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
+3. First build: a few minutes (three images). Subsequent starts: seconds. On first create the provider defaults to the Anthropic API key when one is present on the host (otherwise switch later with the `use-*` commands).
+4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once) and greets you with a banner of the available agents. Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
 
 ### Manage the allowlist from the host
 
