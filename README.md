@@ -1,12 +1,22 @@
 # Claude Code Dev Container
 
-A generic hardened Dev Container for running Claude Code (and other AI coding agents) safely. Provides default-deny network isolation, project-scoped state, and non-root execution out of the box. Azure AI Foundry support is included as an opt-in overlay.
+A generic hardened Dev Container for running AI coding agents safely. Provides default-deny network isolation, project-scoped state, and non-root execution out of the box — then makes that sandbox comfortable to live in, with first-class support for several agent frameworks (Claude Code, opencode, GitHub Copilot CLI) and LLM providers (Anthropic direct, Anthropic API key / gateway, Azure AI Foundry, GitHub Copilot).
 
 ## Goal
 
+**Security is the primary goal.** This container exists so that a misbehaving or compromised agent cannot reach anything outside the project:
+
 1. **Blast-radius containment.** Limits what a running agent can touch to the project workspace and an explicit allowlist of network destinations — no host home directory, no cloud credentials, no SSH keys.
 
-2. **Project isolation.** Each project gets its own container, caches, and Claude session state. No cross-project bleed.
+2. **Project isolation.** Each project gets its own container, caches, and session state. No cross-project bleed.
+
+**Ease of use is a close second.** A sandbox nobody wants to work in doesn't get used, so the container is also built to be productive and framework-agnostic — without ever relaxing the security boundary above:
+
+3. **Multiple agent frameworks, one container.** Claude Code, [opencode](#github-copilot-opencode), and the [GitHub Copilot CLI](#github-copilot-cli) are all installed and ready to run side by side.
+
+4. **Pluggable LLM providers.** A single `use-*` switch ([`llm-switch.sh`](#devcontainerdevelopmentllm-switchsh)) routes `claude`/`opencode` across Anthropic direct, an Anthropic API key or gateway, and Azure AI Foundry; Copilot-backed models are available through opencode and the Copilot CLI.
+
+5. **Comfortable out of the box.** A useful baseline of CLI tools, an auto-opening terminal, firewall-aware tooling that explains blocks instead of failing cryptically, and guidance for [adding your own tools](#adding-tools-to-the-development-container) and skills — see [`FUTURE_IMPROVEMENTS.md`](FUTURE_IMPROVEMENTS.md) for the full set of quality-of-life work.
 
 ## Security measures
 
