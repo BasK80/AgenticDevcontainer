@@ -1053,64 +1053,76 @@ the dev container — edit on the host. Two change classes:
 
 ---
 
-### Step 5.2 — Lock down writable user-space package manager volumes
+### ~~Step 5.2 — Lock down writable user-space package manager volumes~~ ✅ Resolved by design (verified 2026-06-14 — no volumes to remove; goal already met)
 
-**Problem.** The development workarounds used in Steps 3.1, 3.3, and optionally
-4.2 mount certain user-space directories as named Docker volumes so that tools
-can be installed and tested without a container rebuild.  These include:
+**Outcome.** The security goal — *a process inside the dev container cannot
+install executables that survive a rebuild or hide from the image* — is **already
+satisfied by the current design**. The volume-removal work this step anticipated
+is a **no-op: none of the targeted named volumes exist.** No `docker-compose.yml`
+change was needed. The README "Adding tools" section was corrected and given an
+explicit security note; the plan below is updated to record verified reality.
 
-| Volume / path | Used for | Introduced by |
-|---------------|----------|---------------|
-| `~/.npm-global` | npm global installs | Step 3.1 workaround |
-| `~/.local/share/gh/extensions` | `gh` CLI extensions | Step 3.3 workaround |
-| `/home/linuxbrew/.linuxbrew` | Homebrew packages | Step 4.2 option B |
+**What the verification found (empirical — `/proc/mounts` + `docker-compose.yml`
++ `Dockerfile`, in the running container).** The original premise — that Steps
+3.1 / 3.3 / 4.2 left package-manager *install* directories on named volumes — is
+**stale**. Reconciled against how those steps actually shipped:
 
-Once the intended tools are baked into the Dockerfile, these volumes are no
-longer needed for their original purpose but remain as persistent, writable
-attack surfaces.  A rogue agent could use them to install arbitrary packages
-that survive container restarts and are invisible to the container image.
+| Path the step targeted | Reality |
+|------------------------|---------|
+| `~/.npm-global` (npm global prefix; `NPM_CONFIG_PREFIX`, Dockerfile) | **Not a named volume** — it's an image dir on the container *writable layer*. Baked tools (`claude`, `opencode`, `@github/copilot`) live here; a runtime `npm install -g` survives a *restart* but is **discarded on rebuild**. |
+| `~/.local/share/gh/extensions` | **Not a volume**, and unused — Step 3.3 shipped Copilot CLI as the npm package `@github/copilot`, not a `gh` extension. |
+| `/home/linuxbrew/.linuxbrew` | **Does not exist** — Step 4.2 chose strategy A (apt-only); Homebrew was never added, there is no `brew` binary. |
+| `~/.local` (pipx bin) | **Not a volume** — writable layer; pipx installs are discarded on rebuild. |
 
-**Goal.** After all tools are finalised in the Dockerfile, remove or lock down
-every named volume that shadows a user-space package manager directory, so that
-`npm install -g`, `gh extension install`, `brew install`, and `pipx install`
-either fail outright or are constrained to an explicitly documented risk.
+The **only** named volumes mounted under `/home/devuser` are package *caches*
+(`~/.npm`, `~/.cache/pip`, `~/.cache/uv`, `~/.cargo/registry`) and *config*
+(`~/.claude`, `~/.claude-json`, plus read-only `~/.gitconfig`). Caches are not
+bin dirs, are not on `PATH`, and hold no executables an agent could run — they
+exist only to make reinstalls fast and must stay writable. There is nothing here
+that shadows a package-manager *install* target.
 
-**Approach.**
+**Why the strict "make installs fail outright" wording was *not* implemented.**
+The original verification demanded `npm install -g cowsay` fail with a
+permission error. Achieving that means making `~/.npm-global` (and `~/.local/bin`)
+read-only, which directly conflicts with two shipped decisions:
 
-1. Run the following on the host to list all volumes mounted under `/home/devuser`:
-   ```sh
-   docker inspect <dev-container-name> \
-     | jq '.[].Mounts[] | select(.Destination | startswith("/home/devuser"))'
-   ```
-2. For each listed volume, decide: remove the entry (preferred) or add `:ro`.
+- **Breaks Claude Code self-update.** `claude` is installed into `~/.npm-global`
+  *precisely so it can be updated without root* (Dockerfile comment, the
+  `npm install -g @anthropic-ai/claude-code` line). A read-only prefix breaks
+  `claude update` / `npm i -g @anthropic-ai/claude-code`.
+- **Contradicts Steps 4.2 & 4.3**, which document runtime `npm install -g` /
+  `pipx install` as a **supported, ephemeral** convenience.
 
-**Decision table.**
+The accepted posture (decided 2026-06-14) keeps these dirs **writable but
+non-persisted**: runtime installs work for iteration, survive a restart, and are
+**discarded on rebuild** — so the image stays the single source of truth and a
+rebuild always restores a known-good toolset. This is the meaningful
+defense-in-depth (an agent-installed tool cannot outlive a rebuild or hide from
+the image); making installs fail outright would buy little over that while
+breaking documented functionality.
 
-| Path | When finalised in Dockerfile | Action |
-|------|------------------------------|--------|
-| `~/.npm-global` | `RUN npm install -g <tool>` in Dockerfile | Remove volume; image layer becomes source of truth |
-| `~/.local/share/gh/extensions` | `RUN gh extension install ...` in Dockerfile | Remove volume |
-| `/home/linuxbrew/.linuxbrew` | All needed tools added via `apt-get` | Remove volume (breaks `brew install` for users — document) or accept risk and document explicitly |
-| `~/.local` | pipx tools in Dockerfile, or pipx unused | Remove volume |
-
-**Preferred outcome.** After this step, `devuser` cannot persistently install
-new executables without a Dockerfile change and a container rebuild.  Any
-attempt to `npm install -g`, `gh extension install`, `brew install`, or
-`pipx install` either fails with a write-permission error or writes to a path
-that is discarded on container restart.
-
-**Files to change.**
+**Files changed.**
 
 | File | Change |
 |------|--------|
-| `.devcontainer/docker-compose.yml` | Remove or add `:ro` to every named volume that shadows a user-space package manager directory |
-| `README.md` | Document that adding new tools requires a Dockerfile change and rebuild |
+| `.devcontainer/docker-compose.yml` | **None** — no package-manager install volume exists to remove or `:ro`. |
+| `README.md` | "Adding tools" section corrected (`~/.npm-global` is **not** a named volume — the old text wrongly called it one) and given a **security note**: install dirs are deliberately on the writable layer (discarded on rebuild) so runtime installs can't outlive a rebuild or hide from the image; only caches are volumes; do not add named volumes for these paths. |
 
-**Verification.**
-- `npm install -g cowsay` inside the container fails with a permission error.
-- `gh extension install <anything>` fails.
-- `brew install <anything>` fails or is documented as an accepted, monitored risk.
-- `docker inspect` shows no unexpected writable volumes under `/home/devuser`.
+**Verification (re-stated to match reality; confirmed in-container 2026-06-14).**
+- `grep /home/devuser /proc/mounts` → only `.claude`, `.claude-json`, the four
+  caches, and read-only `.gitconfig`. **No package-manager install volume.** ✅
+- `npm config get prefix` → `~/.npm-global`, which is **not** in `/proc/mounts`
+  (writable layer, not a volume) → a runtime `npm install -g` is discarded on
+  rebuild. ✅
+- No `brew`; `~/.local` and `~/.local/share/gh/extensions` are not volumes. ✅
+- Net: nothing persistently installable across a rebuild without a Dockerfile
+  change. Goal met without a compose change.
+
+**Guardrail for future changes.** Do **not** add named volumes for
+`~/.npm-global`, `~/.local`, `~/.local/share/gh`, or a Homebrew prefix — doing so
+would reintroduce exactly the persistent, image-invisible install surface this
+step exists to avoid. If Homebrew or `gh` extensions are ever added, bake them
+into the Dockerfile, not a volume.
 
 ---
 
@@ -1285,6 +1297,6 @@ kept as a permanent fixture.
 | 9 | ~~3.2 — GitHub Copilot SDK (opencode browser login)~~ ✅ Done; Claude Code sub-path dropped | 3.1 |
 | 10 | ~~3.3 — Copilot CLI support~~ ✅ Done | 3.2 |
 | 11 | ~~5.1 — Firewall allowlist feature-flags~~ ✅ Done (apply-step-5.1.sh; rebuild firewall+control) | design finalised 2026-06-14 |
-| 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
+| 12 | ~~5.2 — Lock down user-space package manager volumes~~ ✅ Resolved by design (no volumes to remove; goal already met) | 3.1, 3.3, 4.2 |
 | 13 | ~~6.1 — Move to Node 24 LTS~~ ✅ Done (Dockerfile on `node:24-bookworm`; rebuilt and regression-tested) | all except 5.3 |
 | 14 | 5.3 — Automated pentest | all above (incl. 6.1) |

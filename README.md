@@ -522,12 +522,16 @@ Because `devuser` has **no sudo access** inside the container, new *system* pack
 
 > The Dockerfile is bind-mounted **read-only** inside the container, so edit it from the **host** before rebuilding.
 
-**Language-scoped tools without a rebuild.** Tools that install into a persisted named volume can be added from inside the container with no image change:
+**Language-scoped tools without a rebuild (ephemeral).** Per-language package managers install into the container's writable layer, so they work from inside the container with no image change:
 
 ```sh
-npm install -g <tool>     # installs to ~/.npm-global (persisted named volume)
-pipx install <tool>       # installs to ~/.local (survives restarts, lost on full rebuild)
+npm install -g <tool>     # installs to ~/.npm-global/bin (on PATH)
+pipx install <tool>       # installs to ~/.local/bin
 ```
+
+These install dirs are **not** named volumes: a runtime install survives a container *restart* but is **discarded on a full rebuild** — only the package *caches* (`~/.npm`, `~/.cache/pip`, …) are on named volumes, which just makes reinstalling fast. Treat runtime installs as throwaway; anything you want to keep belongs in the Dockerfile.
+
+> **Why install dirs aren't persisted (security).** Keeping `~/.npm-global` and `~/.local` on the writable layer rather than on named volumes means a tool installed at runtime — including by an agent acting on partly-untrusted input — cannot outlive a rebuild or hide from the image. The image (a Dockerfile change + rebuild) stays the single source of truth for what executables exist; a rebuild restores a known-good toolset. Don't add named volumes for these paths.
 
 The relevant package registry (npmjs.com, pypi.org, …) must be on the firewall allowlist first — see [Manage the allowlist from the host](#manage-the-allowlist-from-the-host).
 
