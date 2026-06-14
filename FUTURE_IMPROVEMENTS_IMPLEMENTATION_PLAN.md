@@ -738,7 +738,7 @@ path with one real example skill file.
 
 ---
 
-### Step 4.4 — Firewall-aware AI tools
+### ~~Step 4.4 — Firewall-aware AI tools~~ ✅ Completed (rebuilt firewall; verified 403 + plain-text page on blocked HTTP/HTTPS, allowlisted traffic unaffected)
 
 **Problem.** When an AI tool attempts to reach a blocked domain it receives a
 generic network error (`connection refused`, `CONNECT tunnel failed`, etc.).
@@ -1105,7 +1105,7 @@ kept as a permanent fixture.
 | 3 | ~~4.1 — Better boot experience~~ ✅ Done | — |
 | 4 | ~~4.2 — Add default Linux tools~~ ✅ Done | — |
 | 5 | ~~4.3 — Skill / tool guide~~ ✅ Done | — |
-| 6 | 4.4 — Firewall-aware AI tools | — |
+| 6 | ~~4.4 — Firewall-aware AI tools~~ ✅ Done | — |
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
 | 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
 | 9 | ~~3.2 — GitHub Copilot SDK (opencode browser login)~~ ✅ Done; Claude Code sub-path dropped | 3.1 |

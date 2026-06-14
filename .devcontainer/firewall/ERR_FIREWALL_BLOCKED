@@ -1,0 +1,18 @@
+FIREWALL: outbound request blocked by the container allowlist.
+
+This is NOT a DNS, connectivity, or bad-URL problem. This container has no
+direct route to the internet -- all outbound traffic goes through a Squid
+forward proxy that enforces a default-deny allowlist, and the requested host
+is not on it.
+
+  Blocked: %u
+
+To allow this destination, add its domain to the firewall allowlist FROM THE
+HOST (a process inside the container cannot change its own allowlist):
+
+  * Control web UI:  http://127.0.0.1:8088
+  * On the host:     docker exec <firewall-container> fw allow <domain> [ttl]
+
+Permanent default: add the domain to
+.devcontainer/firewall/allowlist.default and rebuild the firewall image.
+See README.md -> "Manage the allowlist from the host".
