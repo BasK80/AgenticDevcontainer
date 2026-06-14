@@ -324,7 +324,7 @@ automatically for future container setups.
 
 ---
 
-### Step 3.3 — Support for Copilot CLI
+### ~~Step 3.3 — Support for Copilot CLI~~ ✅ Completed (commit `972ce90`)
 
 **Goal.** Install the agentic **GitHub Copilot CLI** in the development image so
 users can use it as an alternative agentic coding tool alongside Claude Code and
@@ -989,7 +989,7 @@ bootstrap, so the bump is only safe if each is re-verified after rebuild:
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
 | 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
 | 9 | ~~3.2 — GitHub Copilot SDK (opencode browser login)~~ ✅ Done; Claude Code sub-path dropped | 3.1 |
-| 10 | 3.3 — Copilot CLI support | 3.2 |
+| 10 | ~~3.3 — Copilot CLI support~~ ✅ Done | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
 | 13 | 6.1 — Move to Node 24 LTS | all except 5.3 |

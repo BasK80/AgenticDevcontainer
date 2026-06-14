@@ -18,7 +18,7 @@ Also fixed a bug in the `fw` script: line 9 was missing its `#` comment prefix (
 `tools/fw` has been removed. A native `fw` script now lives directly on the firewall container (`/usr/local/bin/fw`) and supports `allow`, `deny`, `list`, `blocks`, and `log`. README and USAGE both document `docker exec "$FW" fw <command>` as the management interface.
 
 ### Move to Node 24 LTS
-The development image is built on `node:20-bookworm`. Step 3.3 (Copilot CLI) bumps this to `node:22-bookworm` because Copilot CLI requires Node ≥ 22. Once that lands, the image should move all the way to the current **Node 24 LTS** (`node:24-bookworm`) so the toolchain sits on a long-term-support release rather than the soon-to-age 22 line — one deliberate bump instead of drifting.
+The development image now runs on `node:22-bookworm` — Step 3.3 (Copilot CLI) bumped it from `node:20-bookworm` because Copilot CLI requires Node ≥ 22. The image should now move all the way to the current **Node 24 LTS** (`node:24-bookworm`) so the toolchain sits on a long-term-support release rather than the soon-to-age 22 line — one deliberate bump instead of drifting.
 
 Because every AI tool in the image runs on this Node (Claude Code, opencode, Copilot CLI) plus the custom `global-agent` proxy bootstrap, the bump must be accompanied by a **regression test that everything still works**: build the image on `node:24-bookworm`, then verify each tool launches, authenticates, reaches the network through the firewall proxy, and returns a completion — and that the `global-agent-bootstrap.js` preload still routes Node's `fetch`/`https` through Squid. The detailed step and its checklist live in *Step 6.1 — Move to Node 24 LTS* in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`.
 
@@ -30,14 +30,18 @@ Because every AI tool in the image runs on this Node (Claude Code, opencode, Cop
 
 The blanket `../.devcontainer:/workspace/.devcontainer:ro` mount is replaced with granular per-path mounts. `development/` is writable, allowing in-container edits to `.zshrc`, `llm-switch.sh`, and similar user-experience files. Security-perimeter files (`Dockerfile`, `post-create.sh`, `post-start.sh`, `firewall/`, `control/`, `docker-compose.yml`, `devcontainer.json`, `.env`, `initialize.sh`) remain individually read-only.
 
-### Support for copilot cli
-The current version of this solution is fully focussed on claude code, but I would like to extend this with support to copilot cli out of the box as well. The scripts that switch between backend llm providers should support set up the environment for both claude and copilot cli where possible and if a provider can only be used with either claude or copilot, then the switch script should state this clearly. 
+### ~~Support for copilot cli~~ ✅ Done
+~~The current version of this solution is fully focussed on claude code, but I would like to extend this with support to copilot cli out of the box as well. The scripts that switch between backend llm providers should support set up the environment for both claude and copilot cli where possible and if a provider can only be used with either claude or copilot, then the switch script should state this clearly.~~
 
-### Support for opencode
-Same story as for the copilot cli, but with opencode.
+The GA agentic **GitHub Copilot CLI** (npm `@github/copilot`, command `copilot`) is now installed in the development image as a third agentic coding tool alongside `claude` and `opencode`, authenticated with your GitHub Copilot subscription via browser device login (`copilot` → `/login`) — no token to manage. It turned out Copilot CLI has its **own** auth and is therefore independent of the provider-switch scripts: `llm-switch.sh` routes `claude`/`opencode` over Anthropic-compatible endpoints and does not apply to `copilot`, which is stated in that script and in USAGE/README. The required base-image bump to `node:22-bookworm` landed here too. See the "GitHub Copilot CLI" section in `README.md` and Step 3.3 in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`.
 
-### Support for GitHub copilot SDK
-The current setup works with an anthropic account, LLM's in Azure foundry or an Anthropic API key to either Anthropic itself or a third-party LLM gateway. In many organisations the preferred way to use LLM's is through GitHub copilot, so having out-of-the-box support for the copilot SDK would be a big improvement.
+### ~~Support for opencode~~ ✅ Done
+~~Same story as for the copilot cli, but with opencode.~~
+
+`opencode` is installed in the development image and wired into `llm-switch.sh` alongside Claude Code: switching providers with `use-anthropic-key`, `use-foundry`, or `use-anthropic` configures **both** tools at once. See Step 3.1 in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`.
+
+### ~~Support for GitHub copilot SDK~~ ✅ Done
+~~The current setup works with an anthropic account, LLM's in Azure foundry or an Anthropic API key to either Anthropic itself or a third-party LLM gateway. In many organisations the preferred way to use LLM's is through GitHub copilot, so having out-of-the-box support for the copilot SDK would be a big improvement.~~
 
 **Update (2026-06-13):** Researched the Claude Code angle. The clean path is `opencode`, which supports Copilot natively via a `GITHUB_TOKEN`. Routing **Claude Code** through a Copilot subscription is *not* viable out of the box: Claude Code hardcodes `x-api-key` auth (no bearer-token gateway mode — the upstream feature request was closed as "not planned"), and `api.githubcopilot.com` requires Copilot-editor client headers. It only works through a reverse-engineered local proxy that impersonates the Copilot client, which loses extended thinking and is a ToS gray area — so the Claude Code sub-path is dropped. **Implemented for opencode via GitHub browser device login** (run `apply-step-3.2.sh` on the host to allowlist `.githubcopilot.com` + `models.dev`, then `/connect` → GitHub Copilot inside opencode and authorise in the browser — no token to manage). See the "GitHub Copilot (opencode)" section in `README.md` and Step 3.2 in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md` for details.
 
