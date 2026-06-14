@@ -532,7 +532,34 @@ not meet requirements.
 
 ---
 
-### Step 4.2 — Add useful default Linux tools
+### ~~Step 4.2 — Add useful default Linux tools~~ ✅ Completed (strategy A — single apt block, one rebuild)
+
+**What was done.**
+- `Dockerfile`: extended the existing `apt-get install` block with the full tool
+  list in one shot (strategy A — compile the list, rebuild once). Added
+  `iputils-ping traceroute netcat-openbsd telnet` (network diagnostics, grouped
+  with the existing `iproute2 dnsutils`), `tree htop psmisc` (grouped with
+  `ripgrep fd-find fzf jq`), and a new `zip unzip sqlite3` line. No Homebrew —
+  it was the optional path (strategy B) and is intentionally left out so Step 5.2
+  doesn't have to lock down yet another user-space package-manager volume.
+- `README.md`: added an **"Adding tools to the development container"** section —
+  lists the baked-in baseline by category, documents the Dockerfile-edit +
+  rebuild workflow (with the host-edit note for the read-only Dockerfile), and
+  the no-rebuild `npm install -g` / `pipx install` paths plus the firewall-
+  allowlist prerequisite.
+
+**Applied via:** `apply-step-4.2.sh` — an idempotent host-side script (the
+`Dockerfile` is bind-mounted read-only inside the container) that rewrites the
+`apt-get install` block. The committed artifact is the Dockerfile change itself.
+
+**Rebuild required.** Run `apply-step-4.2.sh` on the host, then rebuild the
+development image (`Dev Containers: Rebuild Container`).
+
+**Verification (after rebuild).** `ping -c1 firewall`, `tree --version`,
+`htop --version`, `sqlite3 --version`, `nc -h`, `traceroute --version` all
+resolve inside the container.
+
+<details><summary>Original plan</summary>
 
 **Problem.** The development container has no `ping` (and likely other
 commonly expected network/system tools).  Because `devuser` has no `sudo`
@@ -624,6 +651,8 @@ time produces many slow rebuild cycles.
   override file, and rebuild.  **Do not commit the override file.**
 
 **Verification.** After rebuild:
+
+</details>
 
 ---
 
@@ -1044,7 +1073,7 @@ kept as a permanent fixture.
 | 1 | ~~1.1 — Remove fw tool~~ ✅ Done | — |
 | 2 | ~~1.2 — Clean up lifecycle scripts~~ ✅ Done | — |
 | 3 | ~~4.1 — Better boot experience~~ ✅ Done | — |
-| 4 | 4.2 — Add default Linux tools | — |
+| 4 | ~~4.2 — Add default Linux tools~~ ✅ Done | — |
 | 5 | 4.3 — Skill / tool guide | — |
 | 6 | 4.4 — Firewall-aware AI tools | — |
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |

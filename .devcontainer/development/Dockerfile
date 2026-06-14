@@ -23,10 +23,11 @@ ENV NODE_OPTIONS="" \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git curl wget ca-certificates gnupg lsb-release \
       vim zsh tmux \
-      iproute2 dnsutils \
-      ripgrep fd-find fzf jq \
+      iproute2 dnsutils iputils-ping traceroute netcat-openbsd telnet \
+      ripgrep fd-find fzf jq tree htop psmisc \
       build-essential \
       python3 python3-pip python3-venv pipx \
+      zip unzip sqlite3 \
       less man-db \
     && ln -s $(which fdfind) /usr/local/bin/fd \
     && rm -rf /var/lib/apt/lists/*

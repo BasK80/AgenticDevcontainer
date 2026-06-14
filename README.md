@@ -384,6 +384,32 @@ tmux send-keys -t agents "cd ~/trees/feature-b && claude" Enter
 tmux attach -t agents
 ```
 
+## Adding tools to the development container
+
+The image ships a baseline of common CLI tools, installed via the `apt-get install` block in [`.devcontainer/development/Dockerfile`](.devcontainer/development/Dockerfile):
+
+- **Network diagnostics:** `ping` (`iputils-ping`), `traceroute`, `nc` (`netcat-openbsd`), `telnet`, plus `ip`/`dig` (`iproute2`, `dnsutils`).
+- **Process & system:** `htop`, and `killall`/`pstree`/`fuser` (`psmisc`).
+- **Files & data:** `tree`, `zip`/`unzip`, `sqlite3`.
+- **Editor / search / build / runtime:** `vim`, `zsh`, `tmux`, `ripgrep`, `fd`, `fzf`, `jq`, `build-essential`, `python3`/`pipx`.
+
+Because `devuser` has **no sudo access** inside the container, new *system* packages must be added to the Dockerfile and the container rebuilt:
+
+1. Open `.devcontainer/development/Dockerfile`.
+2. Add your package to the `apt-get install` block.
+3. Rebuild: VS Code → Command Palette → *Dev Containers: Rebuild Container* (or `docker compose -f .devcontainer/docker-compose.yml build development`).
+
+> The Dockerfile is bind-mounted **read-only** inside the container, so edit it from the **host** before rebuilding.
+
+**Language-scoped tools without a rebuild.** Tools that install into a persisted named volume can be added from inside the container with no image change:
+
+```sh
+npm install -g <tool>     # installs to ~/.npm-global (persisted named volume)
+pipx install <tool>       # installs to ~/.local (survives restarts, lost on full rebuild)
+```
+
+The relevant package registry (npmjs.com, pypi.org, …) must be on the firewall allowlist first — see [Manage the allowlist from the host](#manage-the-allowlist-from-the-host).
+
 ## Reducing permission prompts
 
 By default Claude Code asks for confirmation before most tool actions. Because this container is already a hardened sandbox (default-deny network, non-root, no Docker socket, no host route — see [Security measures](#security-measures)), you can safely relax these prompts *inside* `/workspace` and let routine work flow without interruption, while still being asked about the handful of actions that are genuinely risky or expensive.
