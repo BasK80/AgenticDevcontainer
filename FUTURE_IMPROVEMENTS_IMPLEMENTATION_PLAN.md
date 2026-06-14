@@ -933,7 +933,7 @@ changes the base image, so it belongs once the toolchain is otherwise complete,
 and the pentest should validate the final Node 24 image. Placed last in this
 document for that reason; see the order table below.*
 
-### ~~Step 6.1 — Move to Node 24 LTS~~ ✅ Completed (Dockerfile on `node:24-bookworm`; rebuild + `tools/verify-node24.sh`)
+### ~~Step 6.1 — Move to Node 24 LTS~~ ✅ Completed (Dockerfile on `node:24-bookworm`; rebuilt and regression-tested)
 
 **Goal.** Move the development image from Node 22 (set by Step 3.3, the minimum
 Copilot CLI needs) all the way to the current **Node 24 LTS**, so the toolchain
@@ -953,39 +953,35 @@ Edit `FROM node:22-bookworm` → `FROM node:24-bookworm` directly in the
 Dockerfile, then do a **full image rebuild** ("Dev Containers: Rebuild
 Container", or `docker compose build --no-cache development`).
 
-**Regression test — `tools/verify-node24.sh`.** The regression test is
-automated. After rebuilding, run the script from inside the container:
+**Regression test (completed — temporary script since removed).** After the
+rebuild, a one-off automated script (`tools/verify-node24.sh`) was run from
+inside the container to validate the bump, then deleted once it passed. It
+performed, with no manual steps where avoidable:
 
-```bash
-tools/verify-node24.sh
-```
-
-It performs, with no manual steps where avoidable:
-
-1. **Node version** — asserts the runtime is `>= 24` (catches a stale image
+1. **Node version** — asserted the runtime was `>= 24` (catches a stale image
    that wasn't actually rebuilt).
 2. **Tool versions** — `node`, `npm`, `claude`, `opencode`, `copilot` each
-   report a version, proving the build-time `npm install -g`s survived the
+   reported a version, proving the build-time `npm install -g`s survived the
    base-image bump.
-3. **Proxy egress (allow + deny)** — `curl`s an allowlisted host (expects it
-   reachable) and a non-allowlisted host (expects a `403` CONNECT block),
-   confirming the Squid firewall still enforces default-deny. Egress is
+3. **Proxy egress (allow + deny)** — `curl`ed an allowlisted host (expected it
+   reachable) and a non-allowlisted host (expected a `403` CONNECT block),
+   confirming the Squid firewall still enforces default-deny. Egress was
    tested at the **proxy layer with `curl`**, not via a raw `node -e fetch`:
    the earlier proxy fix removed the `global-agent` `NODE_OPTIONS` shim, so
    Node's *native* `fetch` no longer routes through the proxy on its own — the
    AI tools use proxy-aware HTTP libraries and honour `http(s)_proxy`, which
-   is what this check exercises.
-4. **Block feed** — confirms `http://firewall:8099` is reachable and prints
+   is what this check exercised.
+4. **Block feed** — confirmed `http://firewall:8099` was reachable and printed
    the most recent denials, so a bump that introduces a new required-but-denied
    domain is visible.
-5. **Tool round-trips (best effort, auth-dependent)** — runs a real model
+5. **Tool round-trips (best effort, auth-dependent)** — ran a real model
    round-trip for `opencode` (via `tools/test-opencode-providers.sh apikey`)
-   and `claude` (`claude -p`) when provider credentials are present;
-   otherwise these are **SKIPPED**, not failed. `copilot`'s device/browser
-   login can't be scripted, so it's always flagged for a one-time manual check.
+   and `claude` (`claude -p`) when provider credentials were present;
+   otherwise these were **SKIPPED**, not failed. `copilot`'s device/browser
+   login can't be scripted, so it was flagged for a one-time manual check.
 
-Exit codes: `0` all runnable checks passed · `1` a hard check failed (don't
-ship the image) · `2` passed but some auth-dependent checks were skipped.
+All runnable checks passed, so the verification script was removed rather than
+kept as a permanent fixture.
 
 **Fallback.** If a tool regresses on Node 24, pin back to `node:22-bookworm`
 (still supported) and file the incompatibility upstream before retrying.
@@ -1008,5 +1004,5 @@ ship the image) · `2` passed but some auth-dependent checks were skipped.
 | 10 | ~~3.3 — Copilot CLI support~~ ✅ Done | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
-| 13 | ~~6.1 — Move to Node 24 LTS~~ ✅ Done (Dockerfile on `node:24-bookworm`; verify with `tools/verify-node24.sh` after rebuild) | all except 5.3 |
+| 13 | ~~6.1 — Move to Node 24 LTS~~ ✅ Done (Dockerfile on `node:24-bookworm`; rebuilt and regression-tested) | all except 5.3 |
 | 14 | 5.3 — Automated pentest | all above (incl. 6.1) |
