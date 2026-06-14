@@ -405,7 +405,29 @@ firewall-only with no rebuild).
 
 *All steps in this phase are independent of each other and of Phases 1–3.*
 
-### Step 4.1 — Better boot experience (auto-open terminal)
+### ~~Step 4.1 — Better boot experience (auto-open terminal)~~ ✅ Completed
+
+**What was done.** Added `/workspace/.vscode/tasks.json` with a single task
+(`runOptions.runOn: "folderOpen"`) that opens a new integrated terminal panel
+on workspace open. `command` is empty, so VS Code launches the default shell
+profile — `zsh`, already set via `terminal.integrated.defaultProfile.linux` in
+`devcontainer.json` — as an interactive terminal. `presentation` is configured
+to always reveal a new, focused panel.
+
+- Chose the `.vscode/tasks.json` route (the plan's recommendation) over a
+  `devcontainer.json` `postAttachCommand`: the task file lives in `/workspace`,
+  so it's writable from inside the container and takes effect on the next folder
+  open with **no rebuild or reattach**. `postAttachCommand` would have required
+  a host-side edit to the read-only `devcontainer.json`, and its output only
+  shows in the notification area — it does not open a terminal panel.
+- On first open VS Code prompts to **"Allow Automatic Tasks"**; once allowed
+  (stored in user settings) the terminal opens on every subsequent attach.
+
+**Verification.** On reopening the workspace folder, VS Code runs the task and a
+focused `zsh` terminal panel appears automatically (after the one-time
+"Allow Automatic Tasks" approval).
+
+<details><summary>Original plan</summary>
 
 **Problem.** After the container finishes starting, users must manually open a
 terminal panel in VS Code before they can interact with the container.
@@ -479,7 +501,7 @@ takes effect on the next folder open without any rebuild or restart.  Only add
 a `postAttachCommand` to `devcontainer.json` if the task-based approach does
 not meet requirements.
 
-**Verification.**
+</details>
 
 ---
 
@@ -994,7 +1016,7 @@ kept as a permanent fixture.
 |-------|------|------------|
 | 1 | ~~1.1 — Remove fw tool~~ ✅ Done | — |
 | 2 | ~~1.2 — Clean up lifecycle scripts~~ ✅ Done | — |
-| 3 | 4.1 — Better boot experience | — |
+| 3 | ~~4.1 — Better boot experience~~ ✅ Done | — |
 | 4 | 4.2 — Add default Linux tools | — |
 | 5 | 4.3 — Skill / tool guide | — |
 | 6 | 4.4 — Firewall-aware AI tools | — |

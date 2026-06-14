@@ -48,8 +48,10 @@ The GA agentic **GitHub Copilot CLI** (npm `@github/copilot`, command `copilot`)
 ### Skill/tool guide
 I do not want to preload this image with skills or tools, since they are too volatile and would add a lot of maintenance overhead. It would be helpful however to add a guide on where to find good (Info Support) skills and tools and how to use them in the development container.
 
-### Better 'boot' experience
-When you currently open the container you have to manually open a terminal after the container has fully booted. This is counter-intuitive and should happen automatically.
+### ~~Better 'boot' experience~~ ✅ Done
+~~When you currently open the container you have to manually open a terminal after the container has fully booted. This is counter-intuitive and should happen automatically.~~
+
+A `.vscode/tasks.json` task with `runOn: "folderOpen"` now opens a focused `zsh` terminal panel automatically when the workspace folder opens. VS Code asks to "Allow Automatic Tasks" once; after that the terminal appears on every attach. No rebuild needed — the file lives in `/workspace`. See *Step 4.1* in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`.
 
 ### Add useful default linux tools
 Right now I know I'm missing the 'ping' tool, but there are probably more tools that should be part of the base image. Since you have no root permissions within the development container, you can't simply install them as needed. Maybe also add a short section to the README on how to add new tools like this. 
