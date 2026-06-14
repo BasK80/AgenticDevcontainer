@@ -83,9 +83,19 @@ Out-of-band management plane, unreachable from `development`. Holds the policy v
 ### `.claude/skills/`
 Five bundled productivity Agent Skills shared by all three agents — see [Bundled skills](#bundled-skills).
 
+### `CLAUDE.md` & `AGENTS.md`
+Project-level agent guides carrying the **firewall-awareness note** (the network topology and how to request allowlist additions), read automatically by Claude Code (`CLAUDE.md`) and opencode (`AGENTS.md`). Portable: copy into any project so its agents understand the default-deny network instead of misreading a blocked request as a connectivity failure.
+
+### `tools/`
+Host-side helper scripts. `setup-host-secrets.sh` persists `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` to `~/.devcontainer-secrets` so they survive rebuilds (see [Store the key on the host](#store-the-key-on-the-host-with-the-helper-script)); `test-opencode-providers.sh` verifies `opencode` completes a round-trip under both Anthropic auth modes.
+
 ## How to use
 
-1. Copy `.devcontainer/` into your project root. Optionally also copy `.vscode/tasks.json` (auto-opens a terminal on attach) and `.claude/skills/` (the [bundled skills](#bundled-skills)).
+1. Copy `.devcontainer/` into your project root. Also worth copying:
+   - `.vscode/tasks.json` — auto-opens a terminal on attach.
+   - `.claude/skills/` — the [bundled skills](#bundled-skills).
+   - `CLAUDE.md` / `AGENTS.md` — the firewall-awareness note for Claude Code / opencode (merge into your own if you already have these files).
+   - `tools/setup-host-secrets.sh` — host-side API-key persistence (see [Store the key on the host](#store-the-key-on-the-host-with-the-helper-script)).
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds. On first create the provider defaults to the Anthropic API key when one is present on the host (otherwise switch later with the `use-*` commands).
 4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once) and greets you with a banner of the available agents. Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
