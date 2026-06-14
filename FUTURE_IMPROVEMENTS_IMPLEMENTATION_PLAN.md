@@ -933,7 +933,7 @@ changes the base image, so it belongs once the toolchain is otherwise complete,
 and the pentest should validate the final Node 24 image. Placed last in this
 document for that reason; see the order table below.*
 
-### Step 6.1 — Move to Node 24 LTS
+### ~~Step 6.1 — Move to Node 24 LTS~~ ✅ Completed (Dockerfile on `node:24-bookworm`; rebuild + `tools/verify-node24.sh`)
 
 **Goal.** Move the development image from Node 22 (set by Step 3.3, the minimum
 Copilot CLI needs) all the way to the current **Node 24 LTS**, so the toolchain
@@ -949,27 +949,43 @@ place; the pentest then runs against the Node 24 image.
 |------|--------|
 | `.devcontainer/development/Dockerfile` | Bump base `node:22-bookworm` → `node:24-bookworm` |
 
-Edited on the host (read-only mount) via a one-off `apply-step-6.1.sh`; requires
-a **full image rebuild**.
+Edit `FROM node:22-bookworm` → `FROM node:24-bookworm` directly in the
+Dockerfile, then do a **full image rebuild** ("Dev Containers: Rebuild
+Container", or `docker compose build --no-cache development`).
 
-**Regression test — everything still works on Node 24.** The image's Node runs
-Claude Code, opencode, Copilot CLI, and the custom `global-agent` proxy
-bootstrap, so the bump is only safe if each is re-verified after rebuild:
+**Regression test — `tools/verify-node24.sh`.** The regression test is
+automated. After rebuilding, run the script from inside the container:
 
-1. **Build** the image on `node:24-bookworm`; confirm it builds clean (the
-   build-time `npm install -g` of `global-agent`, `@anthropic-ai/claude-code`,
-   `opencode-ai`, `@github/copilot` all succeed).
-2. **Versions:** `node --version` (≥ 24), `claude --version`, `opencode
-   --version`, `copilot --version` all succeed.
-3. **Proxy bootstrap:** confirm `NODE_OPTIONS=-r /usr/local/lib/global-agent-bootstrap.js`
-   still loads and routes Node's `fetch`/`https` through Squid — e.g. a Node
-   `fetch` to an allowlisted host succeeds while a non-allowlisted host is
-   blocked (no direct egress).
-4. **Each tool end-to-end:** launch each (`claude`, `opencode`, `copilot`),
-   confirm it authenticates with its active provider and returns a completion
-   through the firewall.
-5. **Firewall block feed** (`curl -s http://firewall:8099`) shows no new
-   required-but-denied domains introduced by the bump.
+```bash
+tools/verify-node24.sh
+```
+
+It performs, with no manual steps where avoidable:
+
+1. **Node version** — asserts the runtime is `>= 24` (catches a stale image
+   that wasn't actually rebuilt).
+2. **Tool versions** — `node`, `npm`, `claude`, `opencode`, `copilot` each
+   report a version, proving the build-time `npm install -g`s survived the
+   base-image bump.
+3. **Proxy egress (allow + deny)** — `curl`s an allowlisted host (expects it
+   reachable) and a non-allowlisted host (expects a `403` CONNECT block),
+   confirming the Squid firewall still enforces default-deny. Egress is
+   tested at the **proxy layer with `curl`**, not via a raw `node -e fetch`:
+   the earlier proxy fix removed the `global-agent` `NODE_OPTIONS` shim, so
+   Node's *native* `fetch` no longer routes through the proxy on its own — the
+   AI tools use proxy-aware HTTP libraries and honour `http(s)_proxy`, which
+   is what this check exercises.
+4. **Block feed** — confirms `http://firewall:8099` is reachable and prints
+   the most recent denials, so a bump that introduces a new required-but-denied
+   domain is visible.
+5. **Tool round-trips (best effort, auth-dependent)** — runs a real model
+   round-trip for `opencode` (via `tools/test-opencode-providers.sh apikey`)
+   and `claude` (`claude -p`) when provider credentials are present;
+   otherwise these are **SKIPPED**, not failed. `copilot`'s device/browser
+   login can't be scripted, so it's always flagged for a one-time manual check.
+
+Exit codes: `0` all runnable checks passed · `1` a hard check failed (don't
+ship the image) · `2` passed but some auth-dependent checks were skipped.
 
 **Fallback.** If a tool regresses on Node 24, pin back to `node:22-bookworm`
 (still supported) and file the incompatibility upstream before retrying.
@@ -992,5 +1008,5 @@ bootstrap, so the bump is only safe if each is re-verified after rebuild:
 | 10 | ~~3.3 — Copilot CLI support~~ ✅ Done | 3.2 |
 | 11 | 5.1 — Firewall allowlist feature-flags | design review first |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
-| 13 | 6.1 — Move to Node 24 LTS | all except 5.3 |
+| 13 | ~~6.1 — Move to Node 24 LTS~~ ✅ Done (Dockerfile on `node:24-bookworm`; verify with `tools/verify-node24.sh` after rebuild) | all except 5.3 |
 | 14 | 5.3 — Automated pentest | all above (incl. 6.1) |
