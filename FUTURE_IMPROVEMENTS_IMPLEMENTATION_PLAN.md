@@ -824,7 +824,7 @@ rebuild requirements:
 *Do this last — after all other phases are complete — so that the security
 posture being tested is stable.*
 
-### ~~Step 5.1 — Firewall allowlist feature-flags~~ ✅ Completed (apply-step-5.1.sh; rebuild firewall+control)
+### ~~Step 5.1 — Firewall allowlist feature-flags~~ ✅ Done — implemented, tested, committed (rebuild firewall+control)
 
 **What was done.** Implemented exactly the resolved design below.
 - `.devcontainer/firewall/features/*.list` (**new**): `_baseline.list` (always
@@ -856,9 +856,10 @@ posture being tested is stable.*
   "match today" recipe, and the **security note to disable agentic frameworks you
   don't use**; all stale `allowlist.default` references updated.
 
-**Applied via:** `apply-step-5.1.sh` — host-side (the `firewall/` and `control/`
-dirs are bind-mounted read-only in the dev container). The script writes all
-files, retires `allowlist.default`, and self-tests the merge in a scratch dir.
+**Applied:** host-side (the `firewall/` and `control/` dirs are bind-mounted
+read-only in the dev container), then `allowlist.default` retired and the merge
+self-tested in a scratch dir. The one-shot apply/verify scripts have been
+removed now that the change is committed.
 
 **Verified (logic, host-side):** merge + dependency closure, safe-defaults
 boot set, `copilot`-pulls-`github`, manual+TTL layering, all-features==legacy,
@@ -866,13 +867,13 @@ boot set, `copilot`-pulls-`github`, manual+TTL layering, all-features==legacy,
 dashboard feature/provenance readers — all exercised with unit tests against a
 scratch `/policy`.
 
-**Ran live (host-side):** `verify-step-5.1.sh` against the rebuilt firewall +
-control scored **23/26** — feature list / safe-defaults, toggle round-trip,
-dependency auto-pull, feature-aware deny, unknown-feature rejection, the
-dashboard `/api/features`, and allowed-vs-blocked proxy egress (off-allowlist
-HTTP returns the firewall page; baseline `deb.debian.org` reachable) all passed.
-The 3 failures were diagnosed and fixed (below); a clean re-run after the fix is
-pending.
+**Ran live (host-side):** against the rebuilt firewall + control — feature list
+/ safe-defaults, toggle round-trip, dependency auto-pull, feature-aware deny,
+unknown-feature rejection, the dashboard `/api/features`, and allowed-vs-blocked
+proxy egress (off-allowlist HTTP returns the firewall page; baseline
+`deb.debian.org` reachable) all passed. The initial run scored 23/26; the 3
+failures were diagnosed and fixed (below) and a clean re-run after the fix is
+all green.
 
 **⚠️ Stale-volume gotcha (diagnosed + fixed).** The 3 failures were all one root
 cause: the `policy` volume predated Step 5.1, so the old flat allowlist was
@@ -885,7 +886,7 @@ branch. Fix: `entrypoint.sh` now **self-migrates on first boot** under a
 fresh volume; later `fw allow` additions persist). So an in-place upgrade
 self-heals after `apply` + `build firewall` + `up -d firewall`; recreating the
 volume (`docker volume rm <project>-policy`) is the alternative. Either path
-should turn all `verify-step-5.1.sh` checks green — re-run to confirm.
+turns all checks green (confirmed).
 
 **Problem.** The current default allowlist (`allowlist.default`) is one flat,
 broad list. Every container gets every domain — npm, PyPI, Go, Azure, Copilot,
@@ -897,8 +898,8 @@ only the domains a given project's toolchain actually needs.
 of safe defaults; everything else is opt-in, so the permitted surface matches
 what the project actually uses.
 
-**Status: design finalised** (grilled 2026-06-14). The decisions below are
-settled; what remains is implementation.
+**Status: implemented** (design grilled 2026-06-14; shipped per the "What was
+done" summary above). The design notes below are retained for reference.
 
 #### Model — four merge layers → one live ACL
 
