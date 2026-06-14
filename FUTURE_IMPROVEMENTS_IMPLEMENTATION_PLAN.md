@@ -555,9 +555,12 @@ not meet requirements.
 **Rebuild required.** Run `apply-step-4.2.sh` on the host, then rebuild the
 development image (`Dev Containers: Rebuild Container`).
 
-**Verification (after rebuild).** `ping -c1 firewall`, `tree --version`,
-`htop --version`, `sqlite3 --version`, `nc -h`, `traceroute --version` all
-resolve inside the container.
+**Verification (after rebuild).** ✅ Done — all added tools resolve and run
+inside the container: `ping firewall` (reachable), `traceroute --version`,
+`nc` (connects to `firewall:3128`), `telnet`, `tree` v2.1.0, `htop` 3.2.2,
+`sqlite3` 3.40.1 (create/insert/select round-trip), `zip`/`unzip` round-trip,
+and `psmisc`'s `killall`/`pstree`/`fuser` (23.6). The existing baseline
+(`ip`, `dig`, `rg`, `fd`, `fzf`, `jq`) is unaffected.
 
 <details><summary>Original plan</summary>
 
