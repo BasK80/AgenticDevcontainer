@@ -17,7 +17,7 @@ Also fixed a bug in the `fw` script: line 9 was missing its `#` comment prefix (
 
 `tools/fw` has been removed. A native `fw` script now lives directly on the firewall container (`/usr/local/bin/fw`) and supports `allow`, `deny`, `list`, `blocks`, and `log`. README and USAGE both document `docker exec "$FW" fw <command>` as the management interface.
 
-### Move to Node 24 LTS ✅ Done
+### ~~Move to Node 24 LTS~~ ✅ Done
 The development image now runs on **`node:24-bookworm`** — Step 6.1 bumped it from `node:22-bookworm` (Step 3.3 had moved it 20→22 for Copilot CLI). The toolchain now sits on the current Node 24 LTS rather than the aging 22 line.
 
 Because every AI tool in the image runs on this Node (Claude Code, opencode, Copilot CLI), the bump was validated with a one-off regression test run from inside the container after the rebuild: it asserted Node ≥ 24, that every tool reported a version, that firewall egress still worked (allowlisted host reachable, non-allowlisted blocked with 403), that the block feed was reachable, and — with provider creds present — that `claude`/`opencode` completed a real round-trip through the proxy. Note: egress was checked at the proxy layer with `curl`, not via a raw `node fetch`; the earlier proxy fix removed the `global-agent` `NODE_OPTIONS` shim, so Node's native `fetch` no longer self-routes through Squid — the tools use proxy-aware HTTP libraries instead. All checks passed, so the temporary verification script was removed. The detailed step lives in *Step 6.1* in `FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`.
