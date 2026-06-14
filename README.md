@@ -16,7 +16,7 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 
 4. **Pluggable LLM providers.** A single `use-*` switch ([`llm-switch.sh`](#devcontainerdevelopmentllm-switchsh)) routes `claude`/`opencode` across Anthropic direct, an Anthropic API key or gateway, and Azure AI Foundry; Copilot-backed models are available through opencode and the Copilot CLI.
 
-5. **Comfortable out of the box.** A useful baseline of CLI tools, an auto-opening terminal, firewall-aware tooling that explains blocks instead of failing cryptically, and guidance for [adding your own tools](#adding-tools-to-the-development-container) and skills — see [`FUTURE_IMPROVEMENTS.md`](FUTURE_IMPROVEMENTS.md) for the full set of quality-of-life work.
+5. **Comfortable out of the box.** A useful baseline of CLI tools, an auto-opening terminal, firewall-aware tooling that explains blocks instead of failing cryptically, and guidance for [adding your own tools](#adding-tools-to-the-development-container) and skills.
 
 ## Security measures
 
