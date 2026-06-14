@@ -384,6 +384,59 @@ tmux send-keys -t agents "cd ~/trees/feature-b && claude" Enter
 tmux attach -t agents
 ```
 
+## Reducing permission prompts
+
+By default Claude Code asks for confirmation before most tool actions. Because this container is already a hardened sandbox (default-deny network, non-root, no Docker socket, no host route — see [Security measures](#security-measures)), you can safely relax these prompts *inside* `/workspace` and let routine work flow without interruption, while still being asked about the handful of actions that are genuinely risky or expensive.
+
+Create a personal, git-ignored `.claude/settings.local.json` in the repo root:
+
+```jsonc
+{
+  "permissions": {
+    // Run without prompting — safe inside the sandbox.
+    "allow": [
+      "Bash",
+      "Read",
+      "Edit",
+      "Write"
+    ],
+    // Still prompt for these — they override the broad allows above
+    // (an `ask` rule always wins over an `allow` rule).
+    "ask": [
+      // (1) Can break the container / are hard to undo:
+      "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
+      "Bash(rm -r *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(sudo *)",
+      "Bash(npm install -g *)",
+      "Bash(npm uninstall -g *)",
+      "Bash(chmod -R *)",
+      // (2) Spend significant tokens:
+      "Agent",
+      "Task",
+      "Workflow"
+    ]
+  }
+}
+```
+
+Tune the two lists to your own risk tolerance — add patterns you want to keep being asked about, or remove ones you don't.
+
+**Why this is reasonable here.** The container has no route to the internet except the audited firewall proxy, runs as a non-root user with no sudo, has no Docker socket, and is resource-capped. A command run without a prompt still cannot reach a non-allowlisted domain, escalate to root, or touch the host. So the *blast radius* of an unprompted action is confined to the project files in `/workspace` — which are under git anyway.
+
+**The risks — know what you're trading away.** Relaxing prompts removes a real safety net:
+
+- **Workspace changes go unreviewed.** Any `Bash`, `Edit`, or `Write` runs without you seeing it first. A wrong command or a bad edit can still delete or corrupt your working-tree files. Commit often so git is your undo.
+- **`ask` matches by command *prefix* only.** `rm -rf foo` prompts; `cd x && rm -rf foo` or `find . -delete` does **not** — the destructive part isn't at the start of the line. Treat the `ask` list as a speed-bump for the obvious cases, not an exhaustive guard.
+- **Secrets in the working tree are readable.** Broad `Read`/`Bash` means a `.env` or token file under `/workspace` can be read into the model context without a prompt.
+- **It does not weaken the container's own boundaries** (network, root, host) — those are enforced by Docker/Squid regardless of these settings. This only changes what *Claude* asks you about, not what the sandbox permits.
+
+**Scope it to yourself.** `.claude/settings.local.json` is git-ignored, so it stays a personal choice and is never committed for the whole team. If you'd rather keep the prompts, simply don't create the file — the safe defaults apply. To dial it back at any time, delete the file or move specific patterns from `allow` to `ask`.
+
 ## Caveats
 
 **Domain-based filtering, not IP-based.** Allowlist entries are hostnames. CDN/Azure IP rotation does not break anything. Wildcard entries (e.g. `.core.windows.net`) match all subdomains.
