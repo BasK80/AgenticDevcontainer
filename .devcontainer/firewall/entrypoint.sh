@@ -6,17 +6,36 @@ set -uo pipefail
 mkdir -p /policy
 touch /policy/ttl.tsv 2>/dev/null || true
 
-# First run: seed the permanent allowlist from the baked production default.
-if [ ! -f /policy/allowlist.acl.perm ]; then
-  cp /etc/squid/allowlist.default /policy/allowlist.acl.perm 2>/dev/null || touch /policy/allowlist.acl.perm
+# Feature definitions are image-owned: refresh the runtime copy from the baked
+# defaults on every start so a rebuilt image always wins, while the toggle
+# state (features.state) and manual edits in /policy persist. The control
+# container reads these defs from /policy (it has no /etc/squid).
+rm -rf /policy/features.defs 2>/dev/null || true
+mkdir -p /policy/features.defs
+cp /etc/squid/features/*.list /policy/features.defs/ 2>/dev/null || true
+
+# First run: seed the toggle state. Safe-defaults ON; everything else opt-in.
+if [ ! -f /policy/features.state ]; then
+  defaults_on=" anthropic github npm opencode "
+  for f in /policy/features.defs/*.list; do
+    [ -e "$f" ] || continue
+    name="$(basename "$f" .list)"
+    [ "$name" = "_baseline" ] && continue
+    case "$defaults_on" in
+      *" $name "*) echo "$name=on" ;;
+      *)           echo "$name=off" ;;
+    esac
+  done > /policy/features.state 2>/dev/null || true
 fi
+
+# Manual permanent allowlist (what `fw allow` writes) — starts empty.
+touch /policy/allowlist.acl.perm 2>/dev/null || true
 
 # Build the live allowlist immediately so Squid starts with the full policy
 # (avoids a deny-all race window while the watcher spins up).
 {
   echo "invalid.invalid"
-  grep -vE '^[[:space:]]*(#|$)' /policy/allowlist.acl.perm 2>/dev/null
-  [ -s /policy/ttl.tsv ] && cut -f2 /policy/ttl.tsv 2>/dev/null
+  /usr/local/bin/build-acl.sh
 } 2>/dev/null | sort -u > /policy/allowlist.acl
 
 mkdir -p /var/log/squid /var/spool/squid

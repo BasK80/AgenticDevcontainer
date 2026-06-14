@@ -20,7 +20,7 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 
 ## Security measures
 
-**Default-DENY outbound network via a separate firewall container.** The dev container (`development`) is on a Docker `internal: true` network with **no route to the internet**. The only egress path is a Squid proxy running in a sibling `firewall` container that enforces a domain allowlist (see [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default)). Denied requests return a readable `403` whose body is a **firewall-aware plain-text page** explaining that the host is off the allowlist and how to add it — so AI tools (including ones with no project-prompt hook, like the Copilot CLI) surface actionable guidance instead of retrying a "connection failed". `CLAUDE.md` and `AGENTS.md` carry the same network-topology note for Claude Code and opencode. Tools that ignore `HTTP(S)_PROXY` fail closed (no route out), they don't bypass the firewall.
+**Default-DENY outbound network via a separate firewall container.** The dev container (`development`) is on a Docker `internal: true` network with **no route to the internet**. The only egress path is a Squid proxy running in a sibling `firewall` container that enforces a domain allowlist, split into an always-on baseline plus toggleable [feature-sets](#configuring-the-allowlist-feature-sets) (see [.devcontainer/firewall/features/](.devcontainer/firewall/features)). Denied requests return a readable `403` whose body is a **firewall-aware plain-text page** explaining that the host is off the allowlist and how to add it — so AI tools (including ones with no project-prompt hook, like the Copilot CLI) surface actionable guidance instead of retrying a "connection failed". `CLAUDE.md` and `AGENTS.md` carry the same network-topology note for Claude Code and opencode. Tools that ignore `HTTP(S)_PROXY` fail closed (no route out), they don't bypass the firewall.
 
 **Out-of-band management plane (QoL).** A third `control` container hosts the `allow`/`deny` commands, the policy volume, and the web dashboard. It sits on a separate network (`egress` only, never `internal`) and is therefore unreachable from `development`. The hard isolation is the network topology — `development` has no route to `control` regardless of what `control` runs. `control` is a convenience layer: the security would hold even if it were removed and the policy volume were edited directly. An agent inside `development` cannot modify its own allowlist.
 
@@ -75,7 +75,7 @@ The chosen provider is recorded in `~/.llm-provider` and re-applied automaticall
 A `folderOpen` task ("Open terminal on attach") that auto-opens a focused `zsh` terminal in the container, prints the banner, then `exec`s a login shell. VS Code asks to "Allow Automatic Tasks" once. Scoped to Linux — a no-op when the folder is opened on a Windows/macOS host.
 
 ### `.devcontainer/firewall/`
-Squid image: `squid.conf` (ACL + the firewall-aware `deny_info` error page), `allowlist.default` (baked-in default domain list), `ERR_FIREWALL_BLOCKED` (the plain-text page served on a blocked request), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
+Squid image: `squid.conf` (ACL + the firewall-aware `deny_info` error page), `features/` (the always-on `_baseline.list` plus one `.list` per toggleable feature-set), `build-acl.sh` (merges baseline + enabled features + manual + TTL into the live ACL), `ERR_FIREWALL_BLOCKED` (the plain-text page served on a blocked request), `entrypoint.sh`, `watcher.sh` (hot-reloads policy every 5s), `blockfeed.sh` (read-only HTTP feed of recent blocks on `:8099`), `fw` (management script — see [Manage the allowlist](#manage-the-allowlist-from-the-host)).
 
 ### `.devcontainer/control/`
 Out-of-band management plane, unreachable from `development`. Holds the policy volume, the web dashboard (`dashboard.py`), and the management scripts it calls (`allow.sh`, `deny.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`). These scripts write to the same shared `policy` volume as the firewall container's `fw` script, so the dashboard and the CLI are always in sync.
@@ -114,6 +114,10 @@ docker exec      "$FW" fw deny  pypi.org                   # remove an allow (re
 docker exec      "$FW" fw list                             # show the live, compiled allowlist
 docker exec      "$FW" fw blocks                           # recent blocked requests
 docker exec -it  "$FW" fw log                              # follow the access log
+
+docker exec      "$FW" fw feature list                     # feature-sets + their domains + on/off
+docker exec      "$FW" fw feature on  azure                # enable a feature-set
+docker exec      "$FW" fw feature off npm                  # disable a feature-set
 ```
 
 Changes take effect within ~5s (the firewall watcher reloads Squid). Run these on the **host**, not inside the dev container — `development` is deliberately unable to reach the management plane.
@@ -125,10 +129,59 @@ A single-page dashboard is served by the `control` container at **<http://127.0.
 | Section | What it shows |
 |---|---|
 | **Live Traffic** | Real-time stream of every proxied request, colour-coded green (allowed) / red (denied). Collapsible; filter text persists across reloads. |
-| **Allowlist** | Permanent and temporary entries. Each row has a **Remove** button. Temporary entries show a live countdown. |
+| **Feature sets** | One row per toggleable feature-set (`anthropic`, `github`, `npm`, …) with an **Enable**/**Disable** button and the domains it grants. A feature pulled in by another's dependency (e.g. `github` for `copilot`) is badged **via dep** and shows what requires it. |
+| **Allowlist** | **Manual (permanent)** entries you added by hand, **Temporary** TTL entries (live countdown), and the read-only **Baseline (always on)** set. Each manual/temporary row has a **Remove** button. Domains granted by a feature-set live in the Feature sets card, not here. |
 | **Recently Blocked** | Domains with at least one denied request, grouped by host and sorted by recency. One-click **Permanent** / **5m** / **15m** / **1h** and **Custom…** allow buttons per row. |
 
 Every mutation from the dashboard writes to the same shared `policy` volume that the `fw` script modifies directly, so the CLI and the dashboard are always in sync.
+
+### Configuring the allowlist (feature-sets)
+
+The allowlist is split into a small always-on **baseline** plus named
+**feature-sets** you toggle on or off. The baseline is only what's needed to
+open and operate the dev container itself (VS Code server + marketplace, Debian/
+Microsoft apt, a generic JS CDN); everything project-specific is a feature.
+
+| Feature | Grants access to | Default |
+|---|---|---|
+| `anthropic` | Claude Code / Anthropic API (`api.anthropic.com`, `claude.ai`) | **on** |
+| `github` | git, `gh`, GitHub package/skill installs | **on** |
+| `npm` | npm / yarn registries | **on** |
+| `opencode` | opencode's model catalogue (`models.dev`) | **on** |
+| `copilot` | GitHub Copilot inference (`*.githubcopilot.com`); **depends on `github`** | off |
+| `pypi` | Python package index | off |
+| `golang` | Go module proxy + checksum DB | off |
+| `azure` | Azure AI Foundry (Entra ID, ARM, Foundry portal, data plane) | off |
+| `infosupport` | Info Support LLM gateway (test) | off |
+
+Definitions live in `.devcontainer/firewall/features/*.list` (one file per
+feature, domain-per-line, with an optional `# depends:` header). They are baked
+read-only into the firewall image — adding or editing a feature is a maintainer
+action (edit + rebuild the firewall), so a process inside the dev container
+cannot grant itself new domains.
+
+**Toggle a feature** (effective within ~5s, no rebuild):
+
+```bash
+docker exec "$FW" fw feature on  azure     # or use the control web UI
+docker exec "$FW" fw feature off pypi
+```
+
+Enabling a feature transparently pulls in its dependencies (turning on `copilot`
+also allows `github`'s domains, even if `github` is off). Manual `fw allow`
+additions and TTL entries are kept separate from features; removing a
+feature-granted domain with `fw deny` is refused and points you at
+`fw feature off <name>`.
+
+> **🔒 Maximise security — disable what you don't use.** The defaults enable
+> `anthropic`, `github`, `npm`, and `opencode` (the API-key agentic tools and
+> their common ecosystem). For the tightest egress surface, **turn off the
+> agentic frameworks you don't run**
+> — if you only use Claude Code, `fw feature off opencode`; if you only use
+> opencode, `fw feature off anthropic`; enable `copilot` only when you actually
+> use Copilot. Likewise leave `pypi` / `golang` / `azure` / `infosupport` off
+> unless the project needs them. To reproduce the old "everything allowed"
+> behaviour, enable every feature: `for f in anthropic github npm opencode copilot pypi golang azure infosupport; do docker exec "$FW" fw feature on $f; done`.
 
 ### See blocks from inside the dev container
 - Each blocked request shows up as a `403` proxy error in your tools.
@@ -228,16 +281,20 @@ This repo is currently configured to route Claude Code through Azure AI Foundry 
 
 ### 1. Firewall - add your resource endpoints to the allowlist
 
-The default allowlist in [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default) already includes Microsoft Entra ID, Azure Resource Manager, `ai.azure.com`, and the common Azure data-plane wildcards. Add your per-resource endpoints (find them in the Azure portal under your resource → Keys and Endpoint, or `az cognitiveservices account show --name <n> --resource-group <rg> --query "properties.endpoints" -o json`).
+Azure access is the `azure` **feature-set** ([.devcontainer/firewall/features/azure.list](.devcontainer/firewall/features/azure.list)) — it groups Microsoft Entra ID, Azure Resource Manager, `ai.azure.com`, and the common Azure data-plane wildcards. It is **off by default**, so enable it first (see [Configuring the allowlist](#configuring-the-allowlist-feature-sets)):
 
-Two ways to add:
+```bash
+docker exec "$FW" fw feature on azure
+```
+
+Then add your per-resource endpoints (find them in the Azure portal under your resource → Keys and Endpoint, or `az cognitiveservices account show --name <n> --resource-group <rg> --query "properties.endpoints" -o json`). Two ways to add:
 
 ```bash
 # Temporary/iterating — applies within ~5s, no rebuild needed:
 docker exec "$FW" fw allow YOUR-RESOURCE.services.ai.azure.com
 
-# Permanent baseline — edit and rebuild the firewall image:
-#   1. add the line to .devcontainer/firewall/allowlist.default
+# Permanent — add to the azure feature list and rebuild the firewall image:
+#   1. add the line to .devcontainer/firewall/features/azure.list
 #   2. docker compose -f .devcontainer/docker-compose.yml build firewall
 #   3. Reopen in Container
 ```
@@ -329,22 +386,27 @@ If your organisation provides LLM access through a **GitHub Copilot** subscripti
 
 ### 1. Firewall allowlist
 
-opencode's Copilot flow reaches a few domains the default-deny firewall must allow. The baseline [`allowlist.default`](.devcontainer/firewall/allowlist.default) already includes them, so a **fresh** setup needs nothing extra:
+opencode's Copilot flow reaches a few domains the default-deny firewall must allow. They are split across two feature-sets — enable both (see [Configuring the allowlist](#configuring-the-allowlist-feature-sets)):
 
-- `github.com` (device login) and `api.github.com` (Copilot token exchange) — pre-existing.
-- `.githubcopilot.com` — Copilot inference. The leading-dot wildcard covers the individual, **business**, and enterprise endpoints (e.g. `api.business.githubcopilot.com`).
-- `models.dev` — opencode's model catalogue.
-
-`initialize.sh` and `docker-compose.yml` are unchanged — browser login needs no token passthrough.
-
-### 2. Existing setups: add the domains to the running firewall
-
-A firewall seeds its policy from `allowlist.default` only on first start (see [`entrypoint.sh`](.devcontainer/firewall/entrypoint.sh)). If your container predates this change, add the two new domains live from the **host** (takes effect in ~5s, no rebuild):
+- `copilot` feature → `.githubcopilot.com` — Copilot inference. The leading-dot wildcard covers the individual, **business**, and enterprise endpoints (e.g. `api.business.githubcopilot.com`). It **depends on** `github`, so enabling `copilot` also allows device login / token exchange.
+- `github` feature → `github.com` (device login) and `api.github.com` (Copilot token exchange) — on by default.
+- `opencode` feature → `models.dev`, opencode's model catalogue — on by default.
 
 ```bash
 FW="claude-$(basename "$PWD")-firewall"
-docker exec "$FW" fw allow .githubcopilot.com
-docker exec "$FW" fw allow models.dev
+docker exec "$FW" fw feature on copilot     # pulls in github automatically
+```
+
+`initialize.sh` and `docker-compose.yml` are unchanged — browser login needs no token passthrough.
+
+### 2. Enable the Copilot feature on the running firewall
+
+Toggling a feature takes effect within ~5s, no rebuild:
+
+```bash
+FW="claude-$(basename "$PWD")-firewall"
+docker exec "$FW" fw feature on copilot     # .githubcopilot.com (+ github via dependency)
+# opencode catalogue (models.dev) is the `opencode` feature, on by default.
 ```
 
 ### 3. Log in with the browser device flow
@@ -379,9 +441,9 @@ The image also ships GitHub's GA agentic **Copilot CLI** (npm `@github/copilot`,
 
 > `copilot` is the GA agentic CLI, **not** the legacy `gh copilot` suggest/explain extension. It has its own auth and is independent of the `use-*` provider switch (which only routes `claude`/`opencode` over Anthropic-compatible endpoints).
 
-### 1. Firewall allowlist — nothing new
+### 1. Firewall allowlist — enable the `copilot` feature
 
-The Copilot CLI uses the same domains as the opencode Copilot flow: `github.com/login/device` (device login), `api.github.com` (token exchange), and `*.githubcopilot.com` (inference) — all already in the baseline [`allowlist.default`](.devcontainer/firewall/allowlist.default). A fresh setup needs nothing extra. (Update-check / telemetry domains stay blocked unless a call genuinely requires them.)
+The Copilot CLI uses the same domains as the opencode Copilot flow: `github.com/login/device` (device login), `api.github.com` (token exchange), and `*.githubcopilot.com` (inference). These are covered by the `copilot` feature-set (which depends on `github`); enable it once with `docker exec "$FW" fw feature on copilot` (see [Configuring the allowlist](#configuring-the-allowlist-feature-sets)). (Update-check / telemetry domains stay blocked unless a call genuinely requires them.)
 
 ### 2. Log in with the browser device flow
 
@@ -526,7 +588,7 @@ Tune the two lists to your own risk tolerance — add patterns you want to keep 
 
 **macOS bind mount performance.** `node_modules`, `.venv`, and similar high-IOPS paths are on named volumes in this config. If you add new high-write paths, follow the same pattern.
 
-**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. Edit the baked default in `.devcontainer/firewall/allowlist.default` and rebuild the firewall image to change the seed; use `docker exec "$FW" fw allow|deny` for live edits.
+**Allowlist policy persists.** It lives on the `policy` Docker volume and survives container restarts. To change which domains a feature-set grants, edit the relevant `.devcontainer/firewall/features/*.list` and rebuild the firewall image; toggle feature-sets on/off with `docker exec "$FW" fw feature on|off <name>`; use `docker exec "$FW" fw allow|deny` for live one-off edits.
 
 ## Debugging blocked traffic
 
@@ -595,6 +657,8 @@ All policy state lives on the `policy` volume, mounted at `/policy` inside the `
 
 | File | Purpose |
 |---|---|
-| `/policy/allowlist.acl.perm` | Permanent allows — one domain per line. |
+| `/policy/features.defs/` | Feature-set definitions, refreshed from the baked firewall image on every start (image is source of truth). |
+| `/policy/features.state` | Which feature-sets are on/off — `<name>=on\|off` per line. Written by `fw feature` / the control UI. |
+| `/policy/allowlist.acl.perm` | Manual permanent allows (`fw allow`) — one domain per line. Starts empty. |
 | `/policy/ttl.tsv` | Temporary allows — tab-separated `<epoch_expiry>\t<domain>`. |
-| `/policy/allowlist.acl` | Compiled ACL read by Squid — **auto-generated, do not edit directly**. |
+| `/policy/allowlist.acl` | Compiled ACL read by Squid (baseline + enabled features + manual + TTL) — **auto-generated, do not edit directly**. |

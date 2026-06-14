@@ -1,0 +1,12 @@
+# azure — Azure AI Foundry overlay (Entra ID, ARM, Foundry portal, data plane).
+# Add your per-resource endpoints with `fw allow` or the control UI, e.g.
+#   YOUR-RESOURCE.services.ai.azure.com / .openai.azure.com / .cognitiveservices.azure.com
+login.microsoftonline.com
+login.microsoft.com
+login.live.com
+graph.microsoft.com
+management.azure.com
+management.core.windows.net
+ai.azure.com
+.core.windows.net
+.vault.azure.net

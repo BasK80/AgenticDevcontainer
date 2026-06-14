@@ -4,8 +4,9 @@ Firewall management dashboard for the control container.
 
 Single-file, stdlib-only HTTP server.  Bound to 0.0.0.0:8088; the host
 publish (127.0.0.1:8088:8088 in docker-compose) restricts real exposure to
-loopback.  Every mutating API call shells out to the existing allow/deny
-scripts so the CLI (tools/fw) and the web UI share one source of truth.
+loopback.  Every mutating API call shells out to the existing allow/deny/feature
+scripts so the CLI (fw / allow / deny / feature) and the web UI share one
+source of truth.
 """
 
 import json
@@ -17,15 +18,18 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ---------------------------------------------------------------------------
-# Config
+# Config  (paths overridable via env — used by the test harness)
 # ---------------------------------------------------------------------------
-PORT      = 8088
-PERM_FILE = "/policy/allowlist.acl.perm"
-TTL_FILE  = "/policy/ttl.tsv"
-LOG_FILE  = "/var/log/squid/access.log"
-ALLOW_CMD = "/usr/local/bin/allow"
-DENY_CMD  = "/usr/local/bin/deny"
-MAX_BODY  = 4096   # bytes — cap on POST body
+PORT        = 8088
+PERM_FILE   = os.environ.get("PERM_FILE",     "/policy/allowlist.acl.perm")
+TTL_FILE    = os.environ.get("TTL_FILE",      "/policy/ttl.tsv")
+DEFS_DIR    = os.environ.get("FEATURE_DEFS",  "/policy/features.defs")
+STATE_FILE  = os.environ.get("FEATURE_STATE", "/policy/features.state")
+LOG_FILE    = os.environ.get("LOG_FILE",      "/var/log/squid/access.log")
+ALLOW_CMD   = os.environ.get("ALLOW_CMD",     "/usr/local/bin/allow")
+DENY_CMD    = os.environ.get("DENY_CMD",      "/usr/local/bin/deny")
+FEATURE_CMD = os.environ.get("FEATURE_CMD",   "/usr/local/bin/feature")
+MAX_BODY    = 4096   # bytes — cap on POST body
 
 # ---------------------------------------------------------------------------
 # Security helpers
@@ -42,9 +46,13 @@ _DOMAIN_RE = re.compile(
     r'^\.?(?!-)[A-Za-z0-9-]{1,63}(?<!-)'
     r'(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$'
 )
+_FEATURE_RE = re.compile(r'^[A-Za-z0-9_-]{1,40}$')
 
 def _valid_domain(d):
     return isinstance(d, str) and bool(_DOMAIN_RE.match(d))
+
+def _valid_feature(n):
+    return isinstance(n, str) and bool(_FEATURE_RE.match(n))
 
 # ---------------------------------------------------------------------------
 # Policy readers
@@ -82,6 +90,84 @@ def _read_allowlist():
                     })
 
     return {"permanent": sorted(set(permanent)), "temporary": temporary}
+
+# --- Feature-sets -----------------------------------------------------------
+def _read_feature_defs():
+    """Parse /policy/features.defs/*.list -> ({name: {domains, depends}}, baseline_domains)."""
+    defs, baseline = {}, []
+    if not os.path.isdir(DEFS_DIR):
+        return defs, baseline
+    for fn in sorted(os.listdir(DEFS_DIR)):
+        if not fn.endswith(".list"):
+            continue
+        name = fn[:-5]
+        domains, depends = [], []
+        try:
+            with open(os.path.join(DEFS_DIR, fn)) as fh:
+                for line in fh:
+                    s = line.strip()
+                    if not s:
+                        continue
+                    if s.startswith("#"):
+                        m = re.match(r'#\s*depends:\s*(.+)$', s)
+                        if m:
+                            depends += [d for d in re.split(r'[,\s]+', m.group(1)) if d]
+                        continue
+                    domains.append(s)
+        except OSError:
+            continue
+        if name == "_baseline":
+            baseline = domains
+        else:
+            defs[name] = {"domains": domains, "depends": depends}
+    return defs, baseline
+
+def _read_state(defs):
+    state = {n: False for n in defs}
+    if os.path.isfile(STATE_FILE):
+        with open(STATE_FILE) as fh:
+            for line in fh:
+                s = line.strip()
+                if not s or s.startswith("#") or "=" not in s:
+                    continue
+                k, v = s.split("=", 1)
+                k, v = k.strip(), v.strip().lower()
+                if k in state:
+                    state[k] = (v == "on")
+    return state
+
+def _closure(defs, names):
+    """Transitive closure of `names` over their depends (only real features)."""
+    seen, queue = set(), list(names)
+    while queue:
+        f = queue.pop()
+        if f in seen or f not in defs:
+            continue
+        seen.add(f)
+        queue.extend(defs[f]["depends"])
+    return seen
+
+def _read_features():
+    defs, baseline = _read_feature_defs()
+    state = _read_state(defs)
+    enabled = {n for n, on in state.items() if on}
+    effective = _closure(defs, enabled)
+    required_by = {n: [] for n in defs}
+    for e in sorted(enabled):
+        for d in sorted(_closure(defs, {e})):
+            if d != e and d not in enabled:
+                required_by[d].append(e)
+    features = []
+    for name in sorted(defs):
+        features.append({
+            "name":        name,
+            "enabled":     name in enabled,
+            "effective":   name in effective,
+            "depends":     defs[name]["depends"],
+            "required_by": required_by.get(name, []),
+            "domains":     defs[name]["domains"],
+        })
+    return {"baseline": sorted(set(baseline)), "features": features}
 
 # ---------------------------------------------------------------------------
 # Log parser
@@ -235,6 +321,19 @@ tr:last-child td{border-bottom:none}
 .act-group{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .countdown{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted)}
 .empty-td{color:var(--muted);font-style:italic;text-align:center;padding:16px !important}
+/* Feature sets */
+#featBody td{vertical-align:top}
+.feat-name{font-weight:600;font-size:13px}
+.feat-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.feat-doms{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.chip{font-family:ui-monospace,monospace;font-size:11px;padding:1px 6px;
+      border:1px solid var(--border);border-radius:10px;color:var(--muted)}
+.badge{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;
+       letter-spacing:.04em;padding:1px 6px;border-radius:4px;margin-left:6px}
+.badge.on{background:var(--green);color:#fff}
+.badge.dep{background:var(--accent);color:#fff}
+.badge.off{background:var(--border);color:var(--muted)}
+.tog{min-width:64px;text-align:center}
 /* Toasts */
 #toasts{position:fixed;bottom:16px;right:16px;display:flex;
         flex-direction:column;gap:6px;z-index:999}
@@ -266,10 +365,21 @@ tr:last-child td{border-bottom:none}
     <div id="stream-list"></div>
   </div>
 
+  <!-- Feature sets -->
+  <div class="card">
+    <div class="card-hdr"><h2>Feature sets</h2>
+      <span class="feat-meta">toggle the domain groups this project needs &mdash; disable the agentic frameworks you don't use</span>
+    </div>
+    <table>
+      <thead><tr><th>Feature</th><th>Domains</th><th class="tog">State</th></tr></thead>
+      <tbody id="featBody"></tbody>
+    </table>
+  </div>
+
   <!-- Allowlist -->
   <div class="card">
     <div class="card-hdr"><h2>Allowlist</h2></div>
-    <div class="sub-label">Permanent</div>
+    <div class="sub-label">Manual (permanent)</div>
     <table>
       <thead><tr><th>Domain</th><th></th></tr></thead>
       <tbody id="permBody"></tbody>
@@ -278,6 +388,11 @@ tr:last-child td{border-bottom:none}
     <table>
       <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
       <tbody id="tempBody"></tbody>
+    </table>
+    <div class="sub-label" style="margin-top:4px">Baseline (always on)</div>
+    <table>
+      <thead><tr><th>Domain</th><th></th></tr></thead>
+      <tbody id="baseBody"></tbody>
     </table>
   </div>
 
@@ -315,8 +430,10 @@ var sFilt   = document.getElementById('streamFilter');
 var btnP    = document.getElementById('btnPause');
 var btnC    = document.getElementById('btnClear');
 var btnT    = document.getElementById('btnToggle');
+var featB   = document.getElementById('featBody');
 var permB   = document.getElementById('permBody');
 var tempB   = document.getElementById('tempBody');
+var baseB   = document.getElementById('baseBody');
 var blkB    = document.getElementById('blocksBody');
 var toastsEl = document.getElementById('toasts');
 
@@ -446,10 +563,56 @@ function connectSSE() {
 }
 connectSSE();
 
+// ---- Feature sets rendering ----
+function renderFeatures(data) {
+  var feats = data.features || [];
+  if (!feats.length) {
+    featB.innerHTML = '<tr><td class="empty-td" colspan="3">No feature definitions found</td></tr>';
+  } else {
+    featB.innerHTML = feats.map(function(f) {
+      var badge, meta = '';
+      if (f.enabled) {
+        badge = '<span class="badge on">on</span>';
+      } else if (f.effective) {
+        badge = '<span class="badge dep">via dep</span>';
+        meta = 'required by ' + esc((f.required_by || []).join(', '));
+      } else {
+        badge = '<span class="badge off">off</span>';
+      }
+      if (f.depends && f.depends.length) {
+        meta += (meta ? ' &middot; ' : '') + 'depends: ' + esc(f.depends.join(', '));
+      }
+      var chips = (f.domains || []).map(function(d) {
+        return '<span class="chip">' + esc(d) + '</span>';
+      }).join('');
+      // Toggle reflects the *explicit* state; dependency-pulled features can
+      // still be turned on explicitly (or left off and pulled implicitly).
+      var btnCls = f.enabled ? 'btn-sm btn-danger' : 'btn-sm btn-success';
+      var btnTxt = f.enabled ? 'Disable' : 'Enable';
+      return '<tr data-feature="' + esc(f.name) + '" data-enabled="' + (f.enabled ? '1' : '0') + '">'
+        + '<td><span class="feat-name">' + esc(f.name) + '</span>' + badge
+        + (meta ? '<div class="feat-meta">' + meta + '</div>' : '') + '</td>'
+        + '<td><div class="feat-doms">' + chips + '</div></td>'
+        + '<td class="tog"><button class="' + btnCls + '" data-action="toggle">' + btnTxt + '</button></td>'
+        + '</tr>';
+    }).join('');
+  }
+
+  var base = data.baseline || [];
+  if (!base.length) {
+    baseB.innerHTML = '<tr><td class="empty-td" colspan="2">No baseline entries</td></tr>';
+  } else {
+    baseB.innerHTML = base.map(function(d) {
+      return '<tr><td class="td-domain">' + esc(d) + '</td>'
+        + '<td class="td-ts">always on</td></tr>';
+    }).join('');
+  }
+}
+
 // ---- Allowlist rendering ----
 function renderAllowlist(data) {
   if (!data.permanent.length) {
-    permB.innerHTML = '<tr><td class="empty-td" colspan="2">No permanent entries</td></tr>';
+    permB.innerHTML = '<tr><td class="empty-td" colspan="2">No manual entries</td></tr>';
   } else {
     permB.innerHTML = data.permanent.map(function(d) {
       return '<tr data-domain="' + esc(d) + '">'
@@ -500,18 +663,28 @@ function delegate(tbody, handler) {
     var btn = ev.target.closest('button[data-action]');
     if (!btn) return;
     var tr = btn.closest('tr');
-    if (!tr || !tr.dataset.domain) return;
-    handler(btn, tr.dataset.domain, btn.dataset.action, btn.dataset.ttl);
+    if (!tr) return;
+    handler(btn, tr, btn.dataset.action, btn.dataset.ttl);
   });
 }
 
-delegate(permB, function(btn, domain, action) {
-  if (action === 'deny') doRemove(domain);
+featB.addEventListener('click', function(ev) {
+  var btn = ev.target.closest('button[data-action="toggle"]');
+  if (!btn) return;
+  var tr = btn.closest('tr');
+  if (!tr || !tr.dataset.feature) return;
+  doToggleFeature(tr.dataset.feature, tr.dataset.enabled !== '1');
 });
-delegate(tempB, function(btn, domain, action) {
-  if (action === 'deny') doRemove(domain);
+
+delegate(permB, function(btn, tr, action) {
+  if (action === 'deny' && tr.dataset.domain) doRemove(tr.dataset.domain);
 });
-delegate(blkB, function(btn, domain, action, ttl) {
+delegate(tempB, function(btn, tr, action) {
+  if (action === 'deny' && tr.dataset.domain) doRemove(tr.dataset.domain);
+});
+delegate(blkB, function(btn, tr, action, ttl) {
+  var domain = tr.dataset.domain;
+  if (!domain) return;
   if      (action === 'allow-perm') doAllow(domain, null);
   else if (action === 'allow-ttl')  doAllow(domain, parseInt(ttl, 10));
   else if (action === 'custom')     showCustom(btn, domain);
@@ -555,7 +728,20 @@ function doRemove(domain) {
   }).catch(function(e){ toast('Error: ' + e.message, false); });
 }
 
+function doToggleFeature(name, enabled) {
+  post('/api/feature', { name: name, enabled: enabled }).then(function() {
+    toast('Feature ' + name + ' ' + (enabled ? 'enabled' : 'disabled'));
+    refreshFeatures();
+    refreshAllowlist();
+  }).catch(function(e){ toast('Error: ' + e.message, false); });
+}
+
 // ---- Polling ----
+function refreshFeatures() {
+  fetch('/api/features').then(function(r){
+    if (r.ok) r.json().then(renderFeatures);
+  }).catch(function(){});
+}
 function refreshAllowlist() {
   fetch('/api/allowlist').then(function(r){
     if (r.ok) r.json().then(renderAllowlist);
@@ -566,7 +752,7 @@ function refreshBlocks() {
     if (r.ok) r.json().then(renderBlocks);
   }).catch(function(){});
 }
-function refreshAll() { refreshAllowlist(); refreshBlocks(); }
+function refreshAll() { refreshFeatures(); refreshAllowlist(); refreshBlocks(); }
 
 function tickCountdowns() {
   var now = Math.floor(Date.now() / 1000);
@@ -611,6 +797,18 @@ class _Handler(BaseHTTPRequestHandler):
             n = 0
         return self.rfile.read(min(max(n, 0), MAX_BODY))
 
+    def _run_cmd(self, cmd):
+        """Run a management command; emit a JSON response. Returns nothing."""
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired:
+            self._json({"error": "Command timed out"}, 500)
+            return
+        if r.returncode != 0:
+            self._json({"error": (r.stderr or r.stdout or "command failed").strip()}, 500)
+            return
+        self._json({"ok": True, "message": r.stdout.strip()})
+
     # ------------------------------------------------------------------
     def do_GET(self):
         if not self._ok_host():
@@ -622,6 +820,8 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, "text/html; charset=utf-8", body)
         elif path == "/api/allowlist":
             self._json(_read_allowlist())
+        elif path == "/api/features":
+            self._json(_read_features())
         elif path == "/api/blocks":
             self._json(_read_blocks())
         elif path == "/api/stream":
@@ -657,30 +857,25 @@ class _Handler(BaseHTTPRequestHandler):
                     self._json({"error": "ttl_seconds must be a positive integer"}, 400)
                     return
                 cmd.append(str(ttl))
-            try:
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            except subprocess.TimeoutExpired:
-                self._json({"error": "Command timed out"}, 500)
-                return
-            if r.returncode != 0:
-                self._json({"error": (r.stderr or r.stdout or "command failed").strip()}, 500)
-                return
-            self._json({"ok": True, "message": r.stdout.strip()})
+            self._run_cmd(cmd)
 
         elif path == "/api/deny":
             domain = body.get("domain", "")
             if not _valid_domain(domain):
                 self._json({"error": "Invalid domain"}, 400)
                 return
-            try:
-                r = subprocess.run([DENY_CMD, domain], capture_output=True, text=True, timeout=10)
-            except subprocess.TimeoutExpired:
-                self._json({"error": "Command timed out"}, 500)
+            self._run_cmd([DENY_CMD, domain])
+
+        elif path == "/api/feature":
+            name = body.get("name", "")
+            enabled = body.get("enabled")
+            if not _valid_feature(name):
+                self._json({"error": "Invalid feature name"}, 400)
                 return
-            if r.returncode != 0:
-                self._json({"error": (r.stderr or r.stdout or "command failed").strip()}, 500)
+            if not isinstance(enabled, bool):
+                self._json({"error": "'enabled' must be a boolean"}, 400)
                 return
-            self._json({"ok": True, "message": r.stdout.strip()})
+            self._run_cmd([FEATURE_CMD, name, "on" if enabled else "off"])
 
         else:
             self._json({"error": "Not found"}, 404)

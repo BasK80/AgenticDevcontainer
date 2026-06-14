@@ -5,12 +5,58 @@
 #   docker exec      "$FW" fw deny  <domain>
 #   docker exec      "$FW" fw list
 #   docker exec      "$FW" fw blocks
-#   docker exec      "$FW" fw <command>
+#   docker exec      "$FW" fw feature list|on <name>|off <name>
 #   docker exec -it  "$FW" fw log
 set -euo pipefail
 
 PERM=/policy/allowlist.acl.perm
 TTL=/policy/ttl.tsv
+DEFS=/policy/features.defs
+STATE=/policy/features.state
+
+# --- feature helpers --------------------------------------------------------
+_feat_deps() {  # space-separated deps from a feature's "# depends:" header
+  local f="$DEFS/$1.list"
+  [ -f "$f" ] && sed -n 's/^#[[:space:]]*depends:[[:space:]]*//p' "$f" 2>/dev/null | tr ',' ' '
+  return 0
+}
+_feat_domains() {
+  local f="$DEFS/$1.list"
+  [ -f "$f" ] && grep -vE '^[[:space:]]*(#|$)' "$f" 2>/dev/null
+  return 0
+}
+_enabled() {
+  [ -f "$STATE" ] || return 0
+  grep -E '^[A-Za-z0-9_-]+=on$' "$STATE" 2>/dev/null | sed 's/=on$//'
+  return 0
+}
+_state_of() {  # echo on|off for a feature
+  grep -E "^$1=" "$STATE" 2>/dev/null | tail -n1 | cut -d= -f2 || true
+}
+_closure() {   # transitive closure of enabled features (one per line)
+  local -A seen=(); local queue next f
+  queue="$(_enabled)"
+  while [ -n "${queue// }" ]; do
+    next=""
+    for f in $queue; do
+      [ -n "${seen[$f]:-}" ] && continue
+      [ -f "$DEFS/$f.list" ] || continue
+      seen[$f]=1; echo "$f"
+      next="$next $(_feat_deps "$f")"
+    done
+    queue="$next"
+  done
+}
+_set_feature() {  # name on|off
+  local name="$1" val="$2" tmp
+  tmp="$(mktemp)"
+  if [ -f "$STATE" ] && grep -qE "^$name=" "$STATE"; then
+    sed "s/^$name=.*/$name=$val/" "$STATE" > "$tmp"
+  else
+    { [ -f "$STATE" ] && cat "$STATE"; echo "$name=$val"; } > "$tmp"
+  fi
+  mv -f "$tmp" "$STATE"
+}
 
 case "${1:-}" in
   allow)
@@ -40,16 +86,66 @@ case "${1:-}" in
     if [ "$removed" = 1 ]; then
       echo "removed $d — blocked again within ~5s"
     else
-      echo "note: '$d' is not an explicit allowlist entry."
-      echo "      if it is still reachable it may be covered by a wildcard parent"
-      echo "      (e.g. .githubusercontent.com). check: docker exec \$FW fw list"
+      # Not a manual entry. Is it granted by an enabled feature-set?
+      owner=""
+      for f in $(_closure); do
+        if _feat_domains "$f" | grep -qxF "$d"; then owner="$f"; break; fi
+      done
+      if [ -n "$owner" ]; then
+        echo "note: '$d' is provided by the enabled feature \"$owner\", not a manual entry."
+        echo "      disable the whole feature with:  fw feature off $owner"
+        echo "      (features are the single source of truth for their domains)"
+      else
+        echo "note: '$d' is not an explicit allowlist entry."
+        echo "      if it is still reachable it may be covered by a wildcard parent"
+        echo "      (e.g. .githubusercontent.com). check: docker exec \$FW fw list"
+      fi
     fi
     ;;
   list)    cat /policy/allowlist.acl ;;
   blocks)  tail -n 30 /var/log/squid/access.log ;;
   log)     exec tail -f /var/log/squid/access.log ;;
+  feature)
+    sub="${2:-list}"
+    case "$sub" in
+      list)
+        # Effective set (incl. dependency pulls) for the * marker.
+        eff=" $(_closure | tr '\n' ' ') "
+        for f in "$DEFS"/*.list; do
+          [ -e "$f" ] || continue
+          name="$(basename "$f" .list)"
+          [ "$name" = "_baseline" ] && continue
+          st="$(_state_of "$name")"; st="${st:-off}"
+          mark=" "; case "$eff" in *" $name "*) [ "$st" = off ] && mark="*";; esac
+          deps="$(_feat_deps "$name" | tr -s ' ')"; deps="${deps# }"; deps="${deps% }"
+          printf '%-12s %-3s' "$name" "$st"
+          [ "$mark" = "*" ] && printf ' (active via dependency)'
+          [ -n "$deps" ]    && printf ' [depends: %s]' "$deps"
+          printf '\n'
+          _feat_domains "$name" | sed 's/^/               /'
+        done
+        echo
+        echo "* = off in state but active because an enabled feature depends on it"
+        ;;
+      on|off)
+        name="${3:?usage: fw feature on|off <name>}"
+        if [ ! -f "$DEFS/$name.list" ]; then
+          echo "unknown feature: $name" >&2
+          echo "known: $(cd "$DEFS" && ls *.list 2>/dev/null | sed 's/\.list$//' | grep -v '^_baseline' | tr '\n' ' ')" >&2
+          exit 1
+        fi
+        _set_feature "$name" "$sub"
+        echo "feature $name=$sub — effective within ~5s"
+        ;;
+      *)
+        echo "usage: fw feature list | on <name> | off <name>" >&2
+        exit 1
+        ;;
+    esac
+    ;;
   *)
     echo "usage: fw allow <domain> [ttl_seconds] | fw deny <domain> | fw list | fw blocks | fw log"
+    echo "       fw feature list | on <name> | off <name>"
     echo ""
     echo "run from the host as:"
     echo "  FW=\"claude-\$(basename \"\$PWD\")-firewall\""

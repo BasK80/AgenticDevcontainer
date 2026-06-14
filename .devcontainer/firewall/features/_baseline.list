@@ -1,0 +1,18 @@
+# Baseline — always allowed, not toggleable. Required to open and operate the
+# dev container itself (VS Code server + marketplace, apt, generic JS CDN).
+# --- VS Code Server + Marketplace ---
+update.code.visualstudio.com
+code.visualstudio.com
+go.microsoft.com
+.vscode-cdn.net
+vscode.download.prss.microsoft.com
+marketplace.visualstudio.com
+.vsassets.io
+.vscode-unpkg.net
+# --- Debian / Microsoft apt ---
+deb.debian.org
+security.debian.org
+.debian.org
+packages.microsoft.com
+# --- Generic JS CDN ---
+cdn.jsdelivr.net

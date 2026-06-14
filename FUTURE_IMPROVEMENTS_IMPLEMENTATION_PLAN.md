@@ -824,58 +824,231 @@ rebuild requirements:
 *Do this last — after all other phases are complete — so that the security
 posture being tested is stable.*
 
-### Step 5.1 — Better control over the firewall allowlist
+### ~~Step 5.1 — Firewall allowlist feature-flags~~ ✅ Completed (apply-step-5.1.sh; rebuild firewall+control)
 
-**Problem.** The current default allowlist (`allowlist.default`) is too broad.
-There is no mechanism to enable only the domains actually needed for a given
-project's toolchain.
+**What was done.** Implemented exactly the resolved design below.
+- `.devcontainer/firewall/features/*.list` (**new**): `_baseline.list` (always
+  on) + one file per feature — `anthropic github opencode copilot npm pypi golang
+  azure infosupport`. `copilot.list` carries `# depends: github`. Verified that
+  enabling *all* features reproduces the old flat `allowlist.default` set exactly
+  (41 domains, zero diff).
+- `.devcontainer/firewall/build-acl.sh` (**new**): emits the 4-layer merge
+  (baseline ∪ dep-closed enabled features ∪ manual perm ∪ TTL). Shared by
+  `entrypoint.sh` (boot seed) and `watcher.sh` (5 s recompile).
+- `.devcontainer/firewall/entrypoint.sh`: refreshes `/policy/features.defs` from
+  the baked image each boot; seeds `/policy/features.state` once with safe-
+  defaults (`anthropic github npm opencode` on); `allowlist.acl.perm` now starts
+  empty (no longer seeded from the flat default).
+- `.devcontainer/firewall/fw`: added `feature list|on|off`; `deny` now detects a
+  feature-granted domain and points at `fw feature off <name>` instead of failing
+  silently.
+- `.devcontainer/firewall/Dockerfile`: `COPY features/` + `build-acl.sh`; dropped
+  the `allowlist.default` COPY. **`allowlist.default` retired** (split into
+  `features/`).
+- `.devcontainer/control/feature.sh` (**new**) + `Dockerfile`: control-side
+  toggle writer the dashboard shells out to (peer of `allow`/`deny`).
+- `.devcontainer/control/dashboard.py`: `GET /api/features`, `POST /api/feature`,
+  a **Feature sets** card (toggle + domains + `via dep` / `required by` badges),
+  and the Allowlist card split into Manual / Temporary / Baseline — so every
+  domain's provenance is visible.
+- `README.md` / `AGENTS.md` / `CLAUDE.md`: new "Configuring the allowlist
+  (feature-sets)" section with the taxonomy, toggling, the *enable-every-feature*
+  "match today" recipe, and the **security note to disable agentic frameworks you
+  don't use**; all stale `allowlist.default` references updated.
 
-**Goal.** Allow projects (or users) to declare which feature-sets they need
-(e.g. "npm packages", "Azure access"), and have the corresponding domains
-automatically added to the allowlist.  Domains unrelated to the declared
-features should not be permitted by default.
+**Applied via:** `apply-step-5.1.sh` — host-side (the `firewall/` and `control/`
+dirs are bind-mounted read-only in the dev container). The script writes all
+files, retires `allowlist.default`, and self-tests the merge in a scratch dir.
 
-**Note: this step requires further design before implementation.**  The exact
-configuration surface (devcontainer.json feature flags, a separate config file,
-the control web UI) is still undecided.  The options below are starting points.
+**Verified (logic, host-side):** merge + dependency closure, safe-defaults
+boot set, `copilot`-pulls-`github`, manual+TTL layering, all-features==legacy,
+`fw feature list/on/off` + validation, feature-aware `fw deny`, and the
+dashboard feature/provenance readers — all exercised with unit tests against a
+scratch `/policy`.
 
-**Approach options (evaluate at implementation time).**
+**Ran live (host-side):** `verify-step-5.1.sh` against the rebuilt firewall +
+control scored **23/26** — feature list / safe-defaults, toggle round-trip,
+dependency auto-pull, feature-aware deny, unknown-feature rejection, the
+dashboard `/api/features`, and allowed-vs-blocked proxy egress (off-allowlist
+HTTP returns the firewall page; baseline `deb.debian.org` reachable) all passed.
+The 3 failures were diagnosed and fixed (below); a clean re-run after the fix is
+pending.
 
-| Option | Pros | Cons |
-|--------|------|------|
-| Feature flags in `devcontainer.json` | Single source of truth for container config | `devcontainer.json` is mounted read-only; requires rebuild to change |
-| Separate `allowlist-features.env` file | Easy to edit without rebuild | Another config file to maintain |
-| Control web UI (permanent + temporary toggles) | Best UX; toggleable at runtime | Requires control container; needs fallback for headless use |
+**⚠️ Stale-volume gotcha (diagnosed + fixed).** The 3 failures were all one root
+cause: the `policy` volume predated Step 5.1, so the old flat allowlist was
+still in `/policy/allowlist.acl.perm` (the *manual* layer), masking the feature
+toggles — `pypi.org` stayed allowed with `pypi` off, and `fw deny` removed
+feature domains from that stale manual list instead of hitting the feature-aware
+branch. Fix: `entrypoint.sh` now **self-migrates on first boot** under a
+`/policy/.schema-5.1` marker — it backs up a pre-5.1 `allowlist.acl.perm` to
+`allowlist.acl.perm.pre-5.1` and clears the manual layer (idempotent; no-op on a
+fresh volume; later `fw allow` additions persist). So an in-place upgrade
+self-heals after `apply` + `build firewall` + `up -d firewall`; recreating the
+volume (`docker volume rm <project>-policy`) is the alternative. Either path
+should turn all `verify-step-5.1.sh` checks green — re-run to confirm.
 
-**Preferred design (implement only after design is finalised).**
-1. Define a set of named feature-sets with corresponding domain lists
-   (e.g. `npm` → `registry.npmjs.org, npmjs.com`, `azure` → `*.azure.com`).
-2. Pick a configuration surface (recommend: control web UI with a
-   fallback config file read by the firewall container on startup).
-3. At container start, the firewall reads the enabled features and appends
-   the corresponding domains to its effective allowlist.
-4. Document the available features and how to enable/disable them.
+**Problem.** The current default allowlist (`allowlist.default`) is one flat,
+broad list. Every container gets every domain — npm, PyPI, Go, Azure, Copilot,
+the IS gateway — whether the project uses them or not. There is no way to enable
+only the domains a given project's toolchain actually needs.
 
-**Files to change (tentative — confirm after design).**
+**Goal.** Group the allowlist into named **feature-sets** (e.g. `npm`, `azure`,
+`copilot`) that can be toggled on/off. A fresh container boots with a small set
+of safe defaults; everything else is opt-in, so the permitted surface matches
+what the project actually uses.
+
+**Status: design finalised** (grilled 2026-06-14). The decisions below are
+settled; what remains is implementation.
+
+#### Model — four merge layers → one live ACL
+
+`watcher.sh` (and the boot path in `entrypoint.sh`) computes the live
+`/policy/allowlist.acl` as the sorted-unique union of four layers:
+
+1. **baseline** — `/etc/squid/features/_baseline.list`, *always* merged.
+2. **enabled features** — for each feature marked `on` in
+   `/policy/features.state`, transitively closed over its `# depends:` header,
+   cat `/etc/squid/features/<name>.list`.
+3. **manual** — `/policy/allowlist.acl.perm` (what `fw allow` and the UI
+   "add domain" write). **Starts empty now** — it is no longer seeded from the
+   flat default.
+4. **ttl** — `/policy/ttl.tsv` (timed entries, unchanged).
+
+This is a direct extension of the existing watcher: same 5 s poll, same
+`squid -k reconfigure` on change — only the set being merged grows. The boot
+seed in `entrypoint.sh` is rebuilt the same way so Squid starts with the full
+policy (no deny-all race).
+
+#### Storage & trust boundary
+
+- **Feature definitions are baked read-only into the firewall image**
+  (`/etc/squid/features/`), one file per feature — same trust posture as today's
+  `allowlist.default`. Adding or editing a feature's domains is a maintainer
+  action: edit the repo, rebuild the firewall image. A process inside the dev
+  container cannot grant itself new feature domains.
+- **Toggle state is mutable** in `/policy/features.state`, written by **both**
+  the control web UI and the `fw feature` CLI (same shared `policy` volume that
+  already carries `allowlist.acl.perm` / `ttl.tsv`).
+
+**Feature-definition file shape** — domain-per-line (identical syntax to
+`allowlist.default`) with an optional `# depends:` header:
+
+```
+# /etc/squid/features/copilot.list
+# depends: github
+.githubcopilot.com
+```
+
+#### Taxonomy
+
+```
+baseline (always on, no toggle):
+  vscode-server + marketplace   (update.code.visualstudio.com, code.visualstudio.com,
+                                 go.microsoft.com, .vscode-cdn.net,
+                                 vscode.download.prss.microsoft.com,
+                                 marketplace.visualstudio.com, .vsassets.io,
+                                 .vscode-unpkg.net)
+  debian / microsoft apt        (deb.debian.org, security.debian.org, .debian.org,
+                                 packages.microsoft.com)
+  cdn.jsdelivr.net
+
+features (toggleable):
+  anthropic   = api.anthropic.com, console.anthropic.com, claude.ai
+  github      = github.com, api.github.com, codeload.github.com,
+                .githubusercontent.com, ghcr.io
+  opencode    = models.dev
+  copilot     = .githubcopilot.com                         # depends: github
+  npm         = registry.npmjs.org, .npmjs.org, registry.yarnpkg.com
+  pypi        = pypi.org, .pythonhosted.org
+  golang      = proxy.golang.org, sum.golang.org, .golang.org
+  azure       = login.microsoftonline.com, login.microsoft.com, login.live.com,
+                graph.microsoft.com, management.azure.com,
+                management.core.windows.net, ai.azure.com, .core.windows.net,
+                .vault.azure.net   (+ the commented per-resource placeholders)
+  infosupport = llm-test.infosupport.com
+```
+
+**Safe-defaults (on at fresh boot / headless):** `anthropic`, `github`, `npm`,
+`opencode` — so all baked-in agentic tools that authenticate via API key work
+out of the box. `pypi`, `golang`, `azure`, `copilot`, `infosupport` are off
+until enabled. **"Match today's allowlist" = enable every feature.**
+
+#### Behavior
+
+- **Dependencies — auto-pulled in at merge.** Enabling `copilot` unions
+  `github`'s domains too, regardless of `github`'s own toggle (transitive
+  closure over `# depends:`). You cannot footgun yourself into a half-working
+  Copilot login. The UI labels such domains "required by copilot".
+- **`fw feature` subcommands** (host-side, `docker exec "$FW" fw feature …`):
+  - `fw feature list` — show each feature, on/off, and its domains.
+  - `fw feature on <name>` / `off <name>` — write `features.state`; the watcher
+    applies it within ~5 s. Scriptable for CI / headless (the non-UI control
+    path, since the control container is optional).
+- **`fw deny <domain>` / UI "remove" of a feature-granted domain:** removes from
+  the manual/ttl layers as today; if the domain is instead granted by an
+  *enabled feature*, it refuses rather than silently failing —
+  `"not a manual entry. covered by feature \"copilot\" (enabled). disable with: fw feature off copilot"`.
+  Mirrors the existing wildcard-parent note in `fw deny`. Features remain the
+  single source of truth for their own domains (no per-domain holes).
+- **Dashboard provenance:** the control UI reconstructs provenance by reading
+  the *source layers* (`features/*.list` + `features.state` + manual `perm` +
+  `ttl`) — not the flattened `allowlist.acl` — so every domain is labelled
+  *feature `X`* / *required-by `X`* / *manual* / *temporary (ttl)*. Feature
+  toggles live in the dashboard; this is the primary configuration surface.
+- **Migration: none.** No other users of the current allowlist exist, so the
+  `policy` volume is recreated freely (`docker volume rm <…>-policy`). No
+  schema-versioning / re-seed logic needed; `entrypoint.sh` just seeds a fresh
+  `features.state` with the safe-defaults on first run.
+
+#### Files to change
 
 | File | Change |
 |------|--------|
-| `.devcontainer/firewall/` | Add feature-set domain lists and startup logic to merge them into the active allowlist |
-| `.devcontainer/firewall/allowlist.default` | Trim to a minimal baseline; document which entries moved to named features |
-| `README.md` | Add "Configuring the allowlist" section |
+| `.devcontainer/firewall/features/*.list` | **New** — one file per feature (taxonomy above) + `_baseline.list`; `# depends:` headers where needed |
+| `.devcontainer/firewall/Dockerfile` | `COPY features/ /etc/squid/features/` |
+| `.devcontainer/firewall/entrypoint.sh` | On first run, seed `/policy/features.state` with the safe-defaults; build the boot ACL via the 4-layer merge (incl. dep closure) |
+| `.devcontainer/firewall/watcher.sh` | Replace the perm+ttl merge with the 4-layer merge: baseline ∪ enabled-features (dep-closed) ∪ manual-perm ∪ ttl |
+| `.devcontainer/firewall/fw` | Add `feature list\|on\|off`; make `deny` detect feature-granted domains and point at `fw feature off` |
+| `.devcontainer/firewall/allowlist.default` | Retire — split its contents into `features/*.list` + `_baseline.list`. (Keep a stub or remove + update `entrypoint.sh`'s seed reference.) |
+| `.devcontainer/control/dashboard.py` | Feature toggles (write `features.state`) + provenance-labelled allowlist view |
+| `README.md` | New "Configuring the allowlist" section (see note below) |
+| boot banner (`show-banner.sh`) | One line: opencode/other tools need their feature enabled if turned off |
 
-**Container constraints.** Firewall allowlist files live in
-`.devcontainer/firewall/`, which is mounted read-only inside the dev container.
-Edit on the host.  Two types of changes have different rebuild requirements:
+**README "Configuring the allowlist" section must include:**
+- The feature taxonomy and the safe-defaults.
+- How to toggle: control UI **and** `fw feature on/off`.
+- The "enable every feature to match the legacy flat allowlist" mapping.
+- **Security guidance (explicit):** *disable the agentic-framework features you
+  do not plan to use* — `anthropic` (Claude Code), `opencode`, `copilot` — for
+  the tightest egress surface. Only the framework(s) you actually run need to be
+  on. Likewise leave `pypi` / `golang` / `azure` / `infosupport` off unless the
+  project uses them.
 
-- **Allowlist content changes (no rebuild):** Edit the allowlist files on the
-  host, then reload Squid without rebuilding: `docker exec firewall squid -k reconfigure`
-- **Startup logic changes (firewall container rebuild only):** If feature-set
-  merge logic is added to the firewall container's startup script, rebuild only
-  the firewall container: `docker compose build firewall && docker compose up -d firewall`.
-  The dev container does not need to be rebuilt.
+**Container constraints.** `.devcontainer/firewall/` is mounted read-only inside
+the dev container — edit on the host. Two change classes:
+
+- **Toggle / manual-allowlist changes (no rebuild):** writing `features.state`
+  (UI or `fw feature`) or `fw allow` is picked up by the watcher in ~5 s.
+- **Feature-definition or merge-logic changes (firewall rebuild only):** editing
+  `features/*.list`, `watcher.sh`, `entrypoint.sh`, or `fw` requires rebuilding
+  just the firewall container —
+  `docker compose build firewall && docker compose up -d firewall`. The dev
+  container is untouched.
 
 **Verification.**
+- Fresh volume → `fw feature list` shows `anthropic github npm opencode` on, rest
+  off; `claude` and `opencode` (API-key path) reach their endpoints; `pypi`/`azure`
+  targets are blocked with the firewall error page.
+- `fw feature on azure` → an Azure endpoint becomes reachable within ~5 s;
+  `fw feature off azure` → blocked again.
+- Enable only `copilot` (github off) → `.githubcopilot.com` **and** `github.com`
+  both resolve (dependency auto-pull); `fw feature list` shows github's domains
+  attributed to copilot.
+- `fw deny .githubcopilot.com` while `copilot` is on → refused with the
+  "disable the feature" message; the domain stays reachable.
+- Dashboard shows each allowed domain with its provenance label.
+- Enable every feature → effective allowlist equals the legacy `allowlist.default`
+  set (diff is empty modulo ordering).
 
 ---
 
@@ -1110,7 +1283,7 @@ kept as a permanent fixture.
 | 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
 | 9 | ~~3.2 — GitHub Copilot SDK (opencode browser login)~~ ✅ Done; Claude Code sub-path dropped | 3.1 |
 | 10 | ~~3.3 — Copilot CLI support~~ ✅ Done | 3.2 |
-| 11 | 5.1 — Firewall allowlist feature-flags | design review first |
+| 11 | ~~5.1 — Firewall allowlist feature-flags~~ ✅ Done (apply-step-5.1.sh; rebuild firewall+control) | design finalised 2026-06-14 |
 | 12 | 5.2 — Lock down user-space package manager volumes | 3.1, 3.3, 4.2 |
 | 13 | ~~6.1 — Move to Node 24 LTS~~ ✅ Done (Dockerfile on `node:24-bookworm`; rebuilt and regression-tested) | all except 5.3 |
 | 14 | 5.3 — Automated pentest | all above (incl. 6.1) |

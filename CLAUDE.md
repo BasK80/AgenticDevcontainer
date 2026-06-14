@@ -27,7 +27,10 @@ inside the container cannot modify its own allowlist, by design:
 
 - Control web UI: <http://127.0.0.1:8088>
 - On the host: `docker exec <firewall-container> fw allow <domain> [ttl-seconds]`
-- Permanent default: add the domain to
-  `.devcontainer/firewall/allowlist.default` and rebuild the firewall image.
+- Whole feature-sets (npm, azure, copilot, …) toggle on/off via the control UI
+  or `docker exec <firewall-container> fw feature on|off <name>`.
+- Permanent default: add the domain to the relevant feature list under
+  `.devcontainer/firewall/features/` (or create a new one) and rebuild the
+  firewall image.
 
 See `README.md` → "Manage the allowlist from the host" for details.
