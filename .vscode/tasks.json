@@ -7,12 +7,20 @@
   // terminal opens on every subsequent attach. The task `exec`s an interactive
   // login zsh so the task terminal *becomes* a usable shell and stays open — an
   // empty command would exit immediately and show "press any key to close".
+  //
+  // `folderOpen` tasks also fire when the workspace is opened *locally* (e.g. on
+  // a Windows host with PowerShell), where `exec`/`zsh` don't exist. The command
+  // is therefore scoped per-platform: `exec zsh -l` only on Linux (the
+  // container), and a harmless no-op on Windows/macOS hosts.
   "version": "2.0.0",
   "tasks": [
     {
       "label": "Open terminal on attach",
       "type": "shell",
       "command": "exec zsh -l",
+      "linux": { "command": "exec zsh -l" },
+      "windows": { "command": "exit 0" },
+      "osx": { "command": "exit 0" },
       "runOptions": { "runOn": "folderOpen" },
       "presentation": {
         "reveal": "always",

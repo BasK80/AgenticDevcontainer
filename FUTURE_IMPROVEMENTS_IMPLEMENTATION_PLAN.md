@@ -421,6 +421,13 @@ stays open. `presentation` is configured to always reveal a new, focused panel.
 > then closes on the next keypress. Switching the command to `exec zsh -l` keeps
 > the shell alive as the task's foreground process.
 
+> **Correction 2 (post-implementation).** `folderOpen` tasks also fire when the
+> workspace is opened *locally* (e.g. on a Windows host), not only inside the
+> container. On Windows the task ran under PowerShell, which has no `exec` —
+> producing `The term 'exec' is not recognized…`. Fixed by scoping the command
+> per-platform with the task's `linux`/`windows`/`osx` keys: `exec zsh -l` runs
+> only on Linux (the container); Windows and macOS hosts get a no-op `exit 0`.
+
 - Chose the `.vscode/tasks.json` route (the plan's recommendation) over a
   `devcontainer.json` `postAttachCommand`: the task file lives in `/workspace`,
   so it's writable from inside the container and takes effect on the next folder
