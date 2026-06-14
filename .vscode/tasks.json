@@ -4,14 +4,15 @@
   // Step 4.1 of FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md.
   //
   // VS Code prompts to "Allow Automatic Tasks" on first open; once allowed the
-  // terminal opens on every subsequent attach. An empty command launches the
-  // default shell profile (zsh, set in devcontainer.json) interactively.
+  // terminal opens on every subsequent attach. The task `exec`s an interactive
+  // login zsh so the task terminal *becomes* a usable shell and stays open — an
+  // empty command would exit immediately and show "press any key to close".
   "version": "2.0.0",
   "tasks": [
     {
       "label": "Open terminal on attach",
       "type": "shell",
-      "command": "",
+      "command": "exec zsh -l",
       "runOptions": { "runOn": "folderOpen" },
       "presentation": {
         "reveal": "always",

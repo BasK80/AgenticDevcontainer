@@ -409,10 +409,17 @@ firewall-only with no rebuild).
 
 **What was done.** Added `/workspace/.vscode/tasks.json` with a single task
 (`runOptions.runOn: "folderOpen"`) that opens a new integrated terminal panel
-on workspace open. `command` is empty, so VS Code launches the default shell
-profile — `zsh`, already set via `terminal.integrated.defaultProfile.linux` in
-`devcontainer.json` — as an interactive terminal. `presentation` is configured
-to always reveal a new, focused panel.
+on workspace open. The task command is `exec zsh -l`: VS Code runs a shell task
+by spawning a wrapper shell, and `exec` replaces that wrapper with an
+interactive **login** `zsh`, so the task terminal *becomes* a usable shell and
+stays open. `presentation` is configured to always reveal a new, focused panel.
+
+> **Correction (post-implementation).** The first version used an empty
+> `command: ""`. That does **not** open an interactive terminal — the task runs,
+> finds nothing to do, exits immediately, and VS Code shows
+> *"Terminal will be reused by tasks, press any key to close it."* The terminal
+> then closes on the next keypress. Switching the command to `exec zsh -l` keeps
+> the shell alive as the task's foreground process.
 
 - Chose the `.vscode/tasks.json` route (the plan's recommendation) over a
   `devcontainer.json` `postAttachCommand`: the task file lives in `/workspace`,
