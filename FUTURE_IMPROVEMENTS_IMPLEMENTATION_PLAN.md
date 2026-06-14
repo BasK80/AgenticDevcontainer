@@ -659,7 +659,32 @@ time produces many slow rebuild cycles.
 
 ---
 
-### Step 4.3 — Skill / tool guide
+### ~~Step 4.3 — Skill / tool guide~~ ✅ Completed
+
+**What was done.**
+- `USAGE.md`: added an **"Adding skills and tools"** section (before
+  Troubleshooting) covering: (1) Claude Code skills as custom `/command`
+  Markdown files in project-level `/workspace/.claude/commands/` vs user-level
+  `~/.claude/commands/` (the latter persisted via the `claude` named volume);
+  (2) where to find skills (Anthropic docs, Info Support internal catalogue
+  placeholder, community `awesome-claude-code` repos) with a trust warning;
+  (3) runtime `npm install -g` / `pipx install` with the accurate persistence
+  note; (4) a firewall note linking to the allowlist docs.
+
+**Corrections vs the original outline (verified against the repo).**
+- `~/.npm-global` is **not** a named volume — only `~/.claude`, the package
+  *caches* (`~/.npm`, `~/.cache/pip`, `~/.cache/uv`, `~/.cargo/registry`), and
+  `claude-json` are. So both `npm install -g` (→ `~/.npm-global/bin`) and
+  `pipx install` (→ `~/.local/bin`) survive **restarts** but are lost on a full
+  **rebuild**; the caches just make reinstalling fast. The outline's "npm-global
+  (persisted volume)" claim was wrong and the section states it correctly.
+- npm/PyPI registries (`registry.npmjs.org`, `pypi.org`, `.pythonhosted.org`)
+  are already in `allowlist.default`, so runtime installs work out of the box.
+- Skills/commands are Markdown files (optional YAML frontmatter), not pure YAML.
+- The Info Support internal catalogue link is left as an explicit placeholder
+  (no internal URL available at implementation time).
+
+<details><summary>Original plan</summary>
 
 **Goal.** Provide a concise reference document so users can discover and install
 Claude Code skills and external tools into the container without the project
@@ -708,6 +733,8 @@ having to pre-bundle them.
 
 **Verification.** Review the section for accuracy and test the skill installation
 path with one real example skill file.
+
+</details>
 
 ---
 
@@ -1077,7 +1104,7 @@ kept as a permanent fixture.
 | 2 | ~~1.2 — Clean up lifecycle scripts~~ ✅ Done | — |
 | 3 | ~~4.1 — Better boot experience~~ ✅ Done | — |
 | 4 | ~~4.2 — Add default Linux tools~~ ✅ Done | — |
-| 5 | 4.3 — Skill / tool guide | — |
+| 5 | ~~4.3 — Skill / tool guide~~ ✅ Done | — |
 | 6 | 4.4 — Firewall-aware AI tools | — |
 | 7 | ~~2.1 — Fine-grained .devcontainer mount~~ ✅ Done | 1.1, 1.2 |
 | 8 | ~~3.1 — opencode support~~ ✅ Done | 1.2, 2.1 |
