@@ -20,7 +20,7 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 
 ## Security measures
 
-**Default-DENY outbound network via a separate firewall container.** The dev container (`development`) is on a Docker `internal: true` network with **no route to the internet**. The only egress path is a Squid proxy running in a sibling `firewall` container that enforces a domain allowlist (see [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default)). Denied requests return a readable `403`. Tools that ignore `HTTP(S)_PROXY` fail closed (no route out), they don't bypass the firewall.
+**Default-DENY outbound network via a separate firewall container.** The dev container (`development`) is on a Docker `internal: true` network with **no route to the internet**. The only egress path is a Squid proxy running in a sibling `firewall` container that enforces a domain allowlist (see [.devcontainer/firewall/allowlist.default](.devcontainer/firewall/allowlist.default)). Denied requests return a readable `403` whose body is a **firewall-aware plain-text page** explaining that the host is off the allowlist and how to add it — so AI tools (including ones with no project-prompt hook, like the Copilot CLI) surface actionable guidance instead of retrying a "connection failed". `CLAUDE.md` and `AGENTS.md` carry the same network-topology note for Claude Code and opencode. Tools that ignore `HTTP(S)_PROXY` fail closed (no route out), they don't bypass the firewall.
 
 **Out-of-band management plane (QoL).** A third `control` container hosts the `allow`/`deny` commands, the policy volume, and the web dashboard. It sits on a separate network (`egress` only, never `internal`) and is therefore unreachable from `development`. The hard isolation is the network topology — `development` has no route to `control` regardless of what `control` runs. `control` is a convenience layer: the security would hold even if it were removed and the policy volume were edited directly. An agent inside `development` cannot modify its own allowlist.
 
@@ -47,12 +47,12 @@ VS Code dev-container orchestration. Points at `docker-compose.yml`, selects `de
 
 ### `.devcontainer/docker-compose.yml`
 Defines the three services and two networks:
-- `development` — the container VS Code attaches to. Internal-only network. All persistent state on per-project named volumes (`${LOCAL_WORKSPACE_FOLDER_BASENAME}-*`). Publishes `127.0.0.1:8400-8999` for `az login`. CPU/memory/PID limits set here.
+- `development` — the container VS Code attaches to. Internal-only network. All persistent state on per-project named volumes (`${LOCAL_WORKSPACE_FOLDER_BASENAME}-*`). Publishes `127.0.0.1:8400-8999` for `az login`. CPU/memory/PID limits set here. The `.devcontainer` mount is **fine-grained**: `development/` (the `.zshrc`, `llm-switch.sh`, and similar UX files) is writable so you can tweak the setup in-container, while the security-perimeter files (`Dockerfile`, `post-create.sh`, `post-start.sh`, `firewall/`, `control/`, `docker-compose.yml`, `devcontainer.json`, `.env`) stay individually read-only.
 - `firewall` — Squid on `internal` + `egress`. The only path to the internet.
 - `control` — hosts `allow`/`deny`; on `egress` only, not reachable from `development`.
 
 ### `.devcontainer/development/Dockerfile`
-Image for the dev container (base `node:22-bookworm`). Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, the GitHub Copilot CLI (`@github/copilot`), and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
+Image for the dev container (base `node:24-bookworm`). Installs dev tools, Azure CLI, GitHub CLI, non-root `devuser`, Claude Code, opencode, the GitHub Copilot CLI (`@github/copilot`), and `global-agent` (so Node's native `fetch`/`https` honour the proxy). Sets `HTTP(S)_PROXY=http://firewall:3128` and `NODE_OPTIONS=-r global-agent/bootstrap` image-wide.
 
 ### `.devcontainer/development/post-create.sh`
 Runs once after first container creation. Generic hook for project setup (dependency install, first-run config). Wires up `llm-switch.sh` and writes `~/.claude/settings.json` for Foundry routing.
@@ -73,7 +73,7 @@ Out-of-band management plane, unreachable from `development`. Holds the policy v
 1. Drop `.devcontainer/` into your project root.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds.
-4. Open a terminal in the `development` container and run `claude` (Claude Code) or `opencode`.
+4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once). Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
 
 ### Manage the allowlist from the host
 
@@ -298,7 +298,7 @@ Two options, both clear the Foundry env vars and rewrite `~/.claude/settings.jso
 
 If your organisation provides LLM access through a **GitHub Copilot** subscription (Pro, Pro+, Business, or Enterprise), you can use it inside the container with **opencode**, authenticated via GitHub's **browser device login** — no `GITHUB_TOKEN` or API key to manage. opencode stores its own credential in `~/.local/share/opencode/auth.json`.
 
-> **Claude Code is _not_ supported on this backend.** Claude Code only speaks to Anthropic-compatible endpoints (Anthropic direct, Bedrock, Vertex, Foundry) and has no GitHub Copilot mode — the upstream request for a bearer-token gateway was closed as "not planned". Routing it through Copilot would require a reverse-engineered local proxy (a ToS gray area, and it loses extended thinking), so that path was deliberately dropped. Use **opencode** for Copilot, or one of the Anthropic providers for Claude Code. See Step 3.2 in [`FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md`](FUTURE_IMPROVEMENTS_IMPLEMENTATION_PLAN.md) for the full rationale.
+> **Claude Code is _not_ supported on this backend.** Claude Code only speaks to Anthropic-compatible endpoints (Anthropic direct, Bedrock, Vertex, Foundry) and has no GitHub Copilot mode — the upstream request for a bearer-token gateway was closed as "not planned". Routing it through Copilot would require a reverse-engineered local proxy (a ToS gray area, and it loses extended thinking), so that path was deliberately dropped. Use **opencode** for Copilot, or one of the Anthropic providers for Claude Code.
 
 ### 1. Firewall allowlist
 
@@ -372,7 +372,7 @@ Then in the Copilot CLI:
 
 ```bash
 # inside the container
-copilot --version                                    # confirms install on Node 22
+copilot --version                                    # confirms install on Node 24
 echo "$HTTPS_PROXY"                                  # http://firewall:3128
 ```
 
@@ -419,6 +419,8 @@ pipx install <tool>       # installs to ~/.local (survives restarts, lost on ful
 ```
 
 The relevant package registry (npmjs.com, pypi.org, …) must be on the firewall allowlist first — see [Manage the allowlist from the host](#manage-the-allowlist-from-the-host).
+
+For **Claude Code skills/commands** (where to find them and how to install them as `/command` Markdown files), see the "Adding skills and tools" section in [`USAGE.md`](USAGE.md). The image intentionally ships no skills — they are too volatile to bake in.
 
 ## Reducing permission prompts
 
