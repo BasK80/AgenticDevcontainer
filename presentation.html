@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Dev Container — A Hardened Sandbox for AI Coding Agents</title>
+<style>
+  :root {
+    --bg:        #0b0f12;
+    --bg-2:      #11171c;
+    --panel:     #151c23;
+    --panel-2:   #1b242c;
+    --border:    #243038;
+    --border-2:  #30414c;
+    --text:      #d6e2ea;
+    --text-dim:  #8da2b0;
+    --text-faint:#5e7080;
+    --green:     #3ddc84;
+    --green-dim: #1f8f55;
+    --cyan:      #38e1d4;
+    --red:       #ff5d5d;
+    --red-dim:   #8f2f2f;
+    --amber:     #ffce5c;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 700px at 80% -10%, rgba(56,225,212,0.07), transparent 60%),
+      radial-gradient(1000px 600px at 0% 110%, rgba(61,220,132,0.06), transparent 55%),
+      var(--bg);
+  }
+
+  /* ---------- Deck / slides ---------- */
+  #deck {
+    position: relative;
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(28px, 5vw, 90px);
+    padding-bottom: 88px;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(40px);
+    transition: opacity .42s ease, transform .42s ease, visibility 0s linear .42s;
+    overflow-y: auto;
+  }
+  .slide.active {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    transition: opacity .42s ease, transform .42s ease, visibility 0s;
+    z-index: 2;
+  }
+  .slide.prev { transform: translateX(-40px); }
+
+  .slide-inner {
+    width: 100%;
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ---------- Typography ---------- */
+  .kicker {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .kicker::before {
+    content: "";
+    width: 26px; height: 2px;
+    background: var(--green);
+    display: inline-block;
+  }
+
+  h1 {
+    font-size: clamp(34px, 6vw, 68px);
+    line-height: 1.04;
+    font-weight: 750;
+    letter-spacing: -0.02em;
+    margin-bottom: 22px;
+  }
+  h2 {
+    font-size: clamp(26px, 4vw, 44px);
+    line-height: 1.1;
+    font-weight: 720;
+    letter-spacing: -0.015em;
+    margin-bottom: 22px;
+  }
+  h2 .accent { color: var(--green); }
+  h1 .accent { color: var(--green); }
+  .red-accent { color: var(--red); }
+  .cyan-accent { color: var(--cyan); }
+
+  .lead {
+    font-size: clamp(17px, 2vw, 21px);
+    color: var(--text-dim);
+    line-height: 1.5;
+    max-width: 760px;
+  }
+
+  p { line-height: 1.55; }
+
+  .mono { font-family: var(--mono); }
+
+  /* ---------- Layout helpers ---------- */
+  .grid { display: grid; gap: 18px; }
+  .cols-2 { grid-template-columns: 1fr 1fr; }
+  .cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .cols-2-1 { grid-template-columns: 1.35fr 1fr; }
+  .mt-l { margin-top: 30px; }
+  .mt-m { margin-top: 20px; }
+  .mt-s { margin-top: 12px; }
+
+  @media (max-width: 860px) {
+    .cols-2, .cols-3, .cols-2-1 { grid-template-columns: 1fr; }
+  }
+
+  /* ---------- Cards ---------- */
+  .card {
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 22px;
+    position: relative;
+  }
+  .card h3 {
+    font-size: 18px;
+    font-weight: 680;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card p { font-size: 15px; color: var(--text-dim); }
+  .card .ic {
+    font-family: var(--mono);
+    color: var(--green);
+    font-size: 15px;
+  }
+  .card.danger { border-color: var(--red-dim); }
+  .card.danger h3 .ic { color: var(--red); }
+  .card.good   { border-color: var(--green-dim); }
+
+  /* ---------- Feature list ---------- */
+  .flist { list-style: none; display: grid; gap: 14px; }
+  .flist li {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 14px;
+    align-items: start;
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  .flist li .b {
+    font-family: var(--mono);
+    color: var(--green);
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .flist li.no .b { color: var(--red); }
+  .flist li strong { color: var(--text); font-weight: 650; }
+  .flist li span { color: var(--text-dim); }
+
+  /* ---------- Terminal block ---------- */
+  .term {
+    background: #080b0d;
+    border: 1px solid var(--border-2);
+    border-radius: 12px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 14px;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+  }
+  .term-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    background: #0e1417;
+    border-bottom: 1px solid var(--border);
+  }
+  .term-bar .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .term-bar .r { background: #ff5f56; }
+  .term-bar .y { background: #ffbd2e; }
+  .term-bar .g { background: #27c93f; }
+  .term-bar .title { margin-left: 8px; color: var(--text-faint); font-size: 12px; }
+  .term-body { padding: 16px 18px; line-height: 1.7; }
+  .term-body .pr { color: var(--green); }
+  .term-body .cm { color: var(--text); }
+  .term-body .ar { color: var(--text-faint); }
+  .term-body .ok { color: var(--green); }
+  .term-body .err { color: var(--red); }
+  .term-body .dim { color: var(--text-faint); }
+  .term-body .c-cyan { color: var(--cyan); }
+
+  /* ---------- Pills / tags ---------- */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border-2);
+    background: var(--panel);
+    color: var(--text-dim);
+  }
+  .pill .led { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .pill.red .led { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .pill-row { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  /* ---------- Architecture diagram ---------- */
+  .arch {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+    align-items: stretch;
+    margin-top: 8px;
+  }
+  .node {
+    border: 1.5px solid var(--border-2);
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--panel-2), var(--bg-2));
+    padding: 18px 16px;
+    position: relative;
+    z-index: 2;
+  }
+  .node .nt {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .04em;
+    color: var(--text-faint);
+    margin-bottom: 6px;
+  }
+  .node .nn { font-size: 19px; font-weight: 700; margin-bottom: 10px; }
+  .node ul { list-style: none; display: grid; gap: 7px; }
+  .node ul li { font-size: 13px; color: var(--text-dim); display: flex; gap: 8px; align-items: baseline; }
+  .node ul li::before { content: "·"; color: var(--green); font-weight: 800; }
+  .node.dev   { border-color: #2c5b46; box-shadow: 0 0 0 1px rgba(61,220,132,0.08), 0 14px 40px rgba(0,0,0,0.4); }
+  .node.fw    { border-color: #5a4a2a; }
+  .node.ctl   { border-color: #34404a; }
+  .node .badge {
+    position: absolute; top: -11px; left: 16px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+    padding: 3px 9px; border-radius: 6px; text-transform: uppercase;
+  }
+  .node.dev .badge { background: #123226; color: var(--green); border: 1px solid #2c5b46; }
+  .node.fw .badge  { background: #2e2614; color: var(--amber); border: 1px solid #5a4a2a; }
+  .node.ctl .badge { background: #16202a; color: var(--text-dim); border: 1px solid #34404a; }
+
+  .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    min-width: 64px;
+    position: relative;
+    z-index: 1;
+  }
+  .connector .line {
+    height: 2px;
+    width: 100%;
+    background: repeating-linear-gradient(90deg, var(--green) 0 7px, transparent 7px 13px);
+    position: relative;
+  }
+  .connector.blocked .line {
+    background: repeating-linear-gradient(90deg, var(--red) 0 7px, transparent 7px 13px);
+    opacity: .85;
+  }
+  .connector .lbl {
+    font-family: var(--mono);
+    font-size: 11px;
+    margin-bottom: 8px;
+    color: var(--green);
+    text-align: center;
+    line-height: 1.3;
+  }
+  .connector.blocked .lbl { color: var(--red); }
+  .connector .arrow { font-size: 13px; line-height: 1; }
+
+  .net-strip {
+    display: flex;
+    gap: 12px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+  }
+  .net-strip .net {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px dashed var(--border-2);
+    color: var(--text-dim);
+    display: flex; align-items: center; gap: 9px;
+  }
+  .net-strip .net b { color: var(--text); font-weight: 650; }
+  .net-strip .net.internal { border-color: #2c5b46; }
+  .net-strip .net.egress { border-color: #5a4a2a; }
+
+  .internet-bar {
+    margin-top: 18px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-faint);
+    padding: 10px;
+    border-top: 1px dashed var(--border);
+  }
+
+  /* ---------- Provider flow ---------- */
+  .switch-row { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+  .cmd-chip {
+    font-family: var(--mono);
+    font-size: 15px;
+    padding: 9px 14px;
+    border-radius: 9px;
+    background: #0c1114;
+    border: 1px solid var(--border-2);
+    color: var(--cyan);
+    white-space: nowrap;
+  }
+  .cmd-chip.def { border-color: #2c5b46; color: var(--green); }
+
+  /* ---------- Comparison table ---------- */
+  table.cmp {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14.5px;
+  }
+  table.cmp th, table.cmp td {
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  table.cmp thead th {
+    color: var(--text-faint);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border-2);
+  }
+  table.cmp thead th.us { color: var(--green); }
+  table.cmp td.feat { color: var(--text); font-weight: 600; }
+  table.cmp td.us { color: var(--text); }
+  table.cmp td.them { color: var(--text-dim); }
+  table.cmp tr:last-child td { border-bottom: none; }
+
+  /* ---------- Steps ---------- */
+  .steps { counter-reset: step; display: grid; gap: 16px; }
+  .step {
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .step .num {
+    counter-increment: step;
+    width: 44px; height: 44px;
+    border-radius: 11px;
+    border: 1px solid var(--green-dim);
+    background: #102219;
+    color: var(--green);
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step .num::before { content: counter(step); }
+  .step .t { font-size: 17px; font-weight: 640; margin-bottom: 3px; }
+  .step .d { font-size: 14.5px; color: var(--text-dim); line-height: 1.5; }
+  .step .d code {
+    font-family: var(--mono);
+    background: #0c1114;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 6px;
+    color: var(--cyan);
+    font-size: 13px;
+  }
+
+  /* ---------- Title slide specials ---------- */
+  .title-wrap { display: flex; flex-direction: column; align-items: flex-start; }
+  .logo-mark {
+    display: inline-flex; align-items: center; gap: 14px;
+    margin-bottom: 30px;
+  }
+  .logo-mark .glyph {
+    width: 52px; height: 52px;
+    border-radius: 13px;
+    border: 1.5px solid var(--green-dim);
+    background: linear-gradient(135deg, #11271d, #0c1114);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 24px;
+    color: var(--green);
+    box-shadow: 0 0 24px rgba(61,220,132,0.15);
+  }
+  .logo-mark .lt { font-family: var(--mono); font-size: 15px; color: var(--text-dim); letter-spacing: .04em; }
+  .tagline-strip {
+    margin-top: 34px;
+    display: flex; gap: 14px; flex-wrap: wrap;
+  }
+  .tagline-strip .t {
+    font-family: var(--mono); font-size: 13px;
+    padding: 8px 14px; border-radius: 999px;
+    border: 1px solid var(--border-2);
+    color: var(--text-dim);
+  }
+  .tagline-strip .t b { color: var(--green); font-weight: 650; }
+  .balance {
+    margin-top: 30px;
+    display: inline-flex; align-items: center; gap: 16px;
+    font-family: var(--mono); font-size: 14px; color: var(--text-faint);
+  }
+  .balance .pri { color: var(--green); }
+  .balance .sec { color: var(--cyan); }
+
+  /* ---------- Callout ---------- */
+  .callout {
+    border-left: 3px solid var(--green);
+    background: linear-gradient(90deg, rgba(61,220,132,0.07), transparent);
+    padding: 14px 18px;
+    border-radius: 0 10px 10px 0;
+    font-size: 15px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .callout.red { border-left-color: var(--red); background: linear-gradient(90deg, rgba(255,93,93,0.08), transparent); }
+  .callout b { color: var(--text); }
+
+  /* ---------- Chrome: progress, dots, arrows, counter ---------- */
+  #progress {
+    position: fixed;
+    top: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    width: 0;
+    transition: width .42s ease;
+    z-index: 50;
+    box-shadow: 0 0 12px rgba(56,225,212,0.5);
+  }
+
+  #chrome {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 clamp(18px, 4vw, 50px);
+    z-index: 40;
+    pointer-events: none;
+  }
+  #chrome > * { pointer-events: auto; }
+
+  .nav-btn {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border-2);
+    background: var(--panel);
+    color: var(--text-dim);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all .15s ease;
+    font-family: var(--mono);
+  }
+  .nav-btn:hover { color: var(--green); border-color: var(--green-dim); background: var(--panel-2); }
+  .nav-btn:disabled { opacity: .3; cursor: default; }
+  .nav-btn:disabled:hover { color: var(--text-dim); border-color: var(--border-2); background: var(--panel); }
+
+  #dots { display: flex; gap: 10px; align-items: center; }
+  .dot-nav {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    background: var(--border-2);
+    cursor: pointer;
+    transition: all .2s ease;
+    border: none;
+    padding: 0;
+  }
+  .dot-nav:hover { background: var(--text-dim); transform: scale(1.25); }
+  .dot-nav.active {
+    background: var(--green);
+    width: 26px;
+    border-radius: 6px;
+    box-shadow: 0 0 10px rgba(61,220,132,0.5);
+  }
+
+  .nav-group { display: flex; align-items: center; gap: 14px; }
+  #counter {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-faint);
+    min-width: 54px;
+  }
+  #counter b { color: var(--text); }
+
+  .hint {
+    position: fixed;
+    bottom: 74px; right: clamp(18px, 4vw, 50px);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    z-index: 40;
+    opacity: .8;
+  }
+  .hint kbd {
+    font-family: var(--mono);
+    background: var(--panel);
+    border: 1px solid var(--border-2);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+
+  /* invisible click zones for prev/next on the sides */
+  .clickzone {
+    position: fixed;
+    top: 0; bottom: 64px;
+    width: 12%;
+    z-index: 5;
+    cursor: pointer;
+  }
+  .clickzone.left { left: 0; }
+  .clickzone.right { right: 0; }
+  @media (max-width: 860px) { .clickzone { display: none; } .hint { display: none; } }
+
+  /* scrollbar */
+  .slide::-webkit-scrollbar { width: 8px; }
+  .slide::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
+
+  .footnote { font-size: 12.5px; color: var(--text-faint); margin-top: 16px; font-family: var(--mono); }
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+
+<div class="clickzone left"  data-dir="prev" aria-hidden="true"></div>
+<div class="clickzone right" data-dir="next" aria-hidden="true"></div>
+
+<div id="deck">
+
+  <!-- ============ SLIDE 1 — TITLE ============ -->
+  <section class="slide" data-title="Overview">
+    <div class="slide-inner title-wrap">
+      <div class="logo-mark">
+        <div class="glyph">&#9776;</div>
+        <div class="lt">hardened&nbsp;·&nbsp;framework-agnostic&nbsp;·&nbsp;open&nbsp;source</div>
+      </div>
+      <div class="kicker">Agentic Dev Container</div>
+      <h1>A hardened sandbox<br>for <span class="accent">AI coding agents</span></h1>
+      <p class="lead">
+        A generic Dev Container that lets you run autonomous coding agents safely:
+        default-deny network isolation, project-scoped state, and non-root execution
+        out of the box &mdash; then makes that sandbox comfortable to live in.
+      </p>
+
+      <div class="balance">
+        <span><span class="pri">&#9632; Security</span> is the primary goal</span>
+        <span style="color:var(--border-2)">|</span>
+        <span><span class="sec">&#9632; Ease of use</span> a close second</span>
+      </div>
+
+      <div class="tagline-strip">
+        <div class="t"><b>3</b> agent frameworks, one image</div>
+        <div class="t"><b>1</b> switch for many LLM providers</div>
+        <div class="t"><b>0</b> proprietary dependencies</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 2 — THE PROBLEM ============ -->
+  <section class="slide" data-title="The problem">
+    <div class="slide-inner">
+      <div class="kicker">Why sandbox an agent</div>
+      <h2>An unsandboxed agent has<br>your <span class="red-accent">entire machine&rsquo;s</span> blast radius</h2>
+      <p class="lead">An AI agent runs real commands and makes real network calls on partly-untrusted input. Without a boundary, a single bad decision &mdash; or a prompt injection &mdash; reaches everything <em>you</em> can.</p>
+
+      <div class="grid cols-3 mt-l">
+        <div class="card danger">
+          <h3><span class="ic">&#9888;</span> Credential theft</h3>
+          <p>API keys, cloud tokens, <span class="mono">~/.ssh</span>, and <span class="mono">.env</span> files are all readable &mdash; and quietly exfiltrated over any open egress.</p>
+        </div>
+        <div class="card danger">
+          <h3><span class="ic">&#9888;</span> Host compromise</h3>
+          <p>A mounted Docker socket or root access turns a wrong command into a one-line takeover of the host machine.</p>
+        </div>
+        <div class="card danger">
+          <h3><span class="ic">&#9888;</span> Unbounded egress</h3>
+          <p>Free outbound network is an open channel to pull in malware or push your code and secrets anywhere.</p>
+        </div>
+      </div>
+
+      <div class="callout red mt-l">
+        <b>The goal: blast-radius containment.</b> Limit what a running agent can touch to the project workspace and an explicit allowlist of network destinations &mdash; no host home directory, no cloud credentials, no SSH keys, no cross-project bleed.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 3 — ARCHITECTURE ============ -->
+  <section class="slide" data-title="Architecture">
+    <div class="slide-inner">
+      <div class="kicker">How it works · three containers, two networks</div>
+      <h2>Isolation by <span class="accent">network topology</span></h2>
+
+      <div class="arch">
+        <div class="node dev">
+          <div class="badge">attach here</div>
+          <div class="nt">container</div>
+          <div class="nn">development</div>
+          <ul>
+            <li>Runs the agent + your code</li>
+            <li><span class="mono">internal</span>-only network</li>
+            <li>No direct route out</li>
+          </ul>
+        </div>
+
+        <div class="connector">
+          <div class="lbl">only egress<br>path</div>
+          <div class="line"></div>
+          <div class="arrow" style="color:var(--green)">&#10142;</div>
+        </div>
+
+        <div class="node fw">
+          <div class="badge">enforcement</div>
+          <div class="nt">container</div>
+          <div class="nn">firewall (Squid)</div>
+          <ul>
+            <li>Domain allowlist proxy</li>
+            <li>On <span class="mono">internal</span> + <span class="mono">egress</span></li>
+            <li>Filters every request</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="grid cols-2-1 mt-m" style="align-items:stretch">
+        <div class="node ctl" style="border-radius:14px">
+          <div class="badge">out-of-band</div>
+          <div class="nt">container</div>
+          <div class="nn">control &mdash; management plane</div>
+          <ul style="grid-template-columns:1fr 1fr; display:grid">
+            <li>Web dashboard + <span class="mono">allow/deny</span> CLI</li>
+            <li>On <span class="mono">egress</span> only &mdash; <b style="color:var(--red)">never</b> reachable from development</li>
+          </ul>
+        </div>
+        <div class="connector blocked" style="min-width:auto; padding:14px">
+          <div class="lbl">development &#10799; control<br>no route &mdash; by design</div>
+          <div class="line"></div>
+        </div>
+      </div>
+
+      <div class="net-strip">
+        <div class="net internal"><span class="mono" style="color:var(--green)">&#9679;</span> <b>internal</b> &nbsp;<span class="mono">internal: true</span> &mdash; no external route</div>
+        <div class="net egress"><span class="mono" style="color:var(--amber)">&#9679;</span> <b>egress</b> &nbsp;the only network that reaches the internet</div>
+      </div>
+
+      <div class="callout mt-m">
+        An agent inside <b>development</b> has <b>no route to the internet</b> except through the firewall, and <b>no route to control</b> &mdash; so it <b>cannot modify its own allowlist.</b> The security is the topology, not trust.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 4 — DEFAULT-DENY NETWORKING ============ -->
+  <section class="slide" data-title="Networking">
+    <div class="slide-inner">
+      <div class="kicker">Default-deny egress</div>
+      <h2>Everything blocked &mdash; except an<br><span class="accent">explicit, auditable allowlist</span></h2>
+
+      <div class="grid cols-2-1 mt-m">
+        <div>
+          <ul class="flist">
+            <li><span class="b">&#9656;</span><span><strong>Domain-based, not IP.</strong> The allowlist is hostnames &mdash; resilient to CDN / Azure IP rotation, no re-resolution needed.</span></li>
+            <li><span class="b">&#9656;</span><span><strong>Baseline + feature-sets.</strong> A tiny always-on baseline plus toggleable sets (<span class="mono">anthropic</span>, <span class="mono">github</span>, <span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;). Turn off what you don&rsquo;t use to shrink the exfil surface.</span></li>
+            <li><span class="b">&#9656;</span><span><strong>Readable 403, not a cryptic failure.</strong> A blocked request returns a plain-text page explaining the host is off the allowlist &mdash; so agents surface actionable guidance instead of retrying.</span></li>
+            <li><span class="b">&#9656;</span><span><strong>Hot-reload &amp; live dashboard.</strong> Changes take effect in <span class="mono">~5s</span>; a localhost-only dashboard streams every request, green (allowed) / red (denied).</span></li>
+          </ul>
+        </div>
+
+        <div class="grid" style="gap:14px">
+          <div class="term">
+            <div class="term-bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="title">host shell</span></div>
+            <div class="term-body">
+              <div><span class="pr">$</span> <span class="cm">docker exec $FW fw allow pypi.org</span></div>
+              <div class="ok">&#10003; allowed pypi.org (permanent)</div>
+              <div style="margin-top:8px"><span class="pr">$</span> <span class="cm">fw feature on azure</span></div>
+              <div class="ok">&#10003; azure feature-set enabled</div>
+            </div>
+          </div>
+          <div class="pill-row">
+            <span class="pill"><span class="led"></span> api.anthropic.com</span>
+            <span class="pill"><span class="led"></span> github.com</span>
+            <span class="pill red"><span class="led"></span> evil.example &mdash; 403</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout mt-m">
+        Tools that ignore <span class="mono">HTTP(S)_PROXY</span> <b>fail closed</b> &mdash; <span class="mono">development</span> has no fallback route, so there is nothing to bypass. Allowlist management runs <b>only on the host</b>.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 5 — SECURITY MEASURES ============ -->
+  <section class="slide" data-title="Security">
+    <div class="slide-inner">
+      <div class="kicker">Defense in depth</div>
+      <h2>The rest of the <span class="accent">perimeter</span></h2>
+
+      <div class="grid cols-3 mt-m">
+        <div class="card good"><h3><span class="ic">&#9919;</span> Non-root, no sudo</h3><p>Runs as <span class="mono">devuser</span> (UID 1000) with no privilege-escalation path whatsoever.</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> No Docker socket</h3><p><span class="mono">/var/run/docker.sock</span> is never mounted &mdash; mounting it is a one-line host root escalation.</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> Resource caps</h3><p>CPU (4 cores), memory (8 GB), PID (512) limits stop a runaway agent from hurting the host.</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> Project-scoped volumes</h3><p>All state lives in per-project named volumes. Separate projects = separate state. No bleed.</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> Read-only git identity</h3><p><span class="mono">~/.gitconfig</span> is mounted read-only; SSH keys stay on the host (sign-only, opt-in).</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> Extensions are a trust boundary</h3><p>A host-controlled, read-only pinned set &mdash; an in-container agent can&rsquo;t add to it.</p></div>
+      </div>
+
+      <div class="callout mt-l">
+        <b>Validate it, don&rsquo;t trust it.</b> The bundled <span class="mono c-cyan">/security-test</span> skill runs escape / exfiltration / tamper probes from inside the container and reports per test:
+        <span style="color:var(--green); font-family:var(--mono)">HELD</span> (blocked = pass) or
+        <span style="color:var(--red); font-family:var(--mono)">BYPASS</span> (a finding). Re-run after any config change.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 6 — EASE OF USE ============ -->
+  <section class="slide" data-title="Ease of use">
+    <div class="slide-inner">
+      <div class="kicker">A sandbox you actually want to live in</div>
+      <h2>Three agents, one image &mdash;<br><span class="accent">comfortable out of the box</span></h2>
+
+      <div class="grid cols-3 mt-m">
+        <div class="card"><h3><span class="ic">&#9655;</span> Claude Code</h3><p>Anthropic&rsquo;s agent, installed and ready.</p></div>
+        <div class="card"><h3><span class="ic">&#9655;</span> opencode</h3><p>Open-source agent with a model catalogue.</p></div>
+        <div class="card"><h3><span class="ic">&#9655;</span> Copilot CLI</h3><p>GitHub&rsquo;s <span class="mono">@github/copilot</span>, side by side.</p></div>
+      </div>
+
+      <ul class="flist mt-l">
+        <li><span class="b">&#9656;</span><span><strong>Auto-opening terminal + banner.</strong> Open the folder and a focused <span class="mono">zsh</span> greets you with the available agents and the active provider.</span></li>
+        <li><span class="b">&#9656;</span><span><strong>Firewall-aware tooling.</strong> Blocks are explained, not cryptic; <span class="mono">CLAUDE.md</span> / <span class="mono">AGENTS.md</span> teach agents the network topology.</span></li>
+        <li><span class="b">&#9656;</span><span><strong>Bundled skills.</strong> <span class="mono">caveman</span>, <span class="mono">grill-me</span>, <span class="mono">handoff</span>, <span class="mono">write-a-skill</span>, <span class="mono">security-test</span> &mdash; one copy, shared by all three agents.</span></li>
+        <li><span class="b">&#9656;</span><span><strong>Solid baseline tooling.</strong> <span class="mono">ripgrep · fd · fzf · jq · tmux · vim · gh · az</span> and more, plus caches on named volumes for fast reinstalls.</span></li>
+      </ul>
+
+      <div class="callout mt-m">
+        <b>Image is the source of truth.</b> Runtime <span class="mono">npm i -g</span> / <span class="mono">pipx</span> installs work without a rebuild but are <b>discarded on rebuild</b> &mdash; so an agent can&rsquo;t permanently plant an executable. Want it kept? Add it to the Dockerfile.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 7 — PROVIDERS ============ -->
+  <section class="slide" data-title="Providers">
+    <div class="slide-inner">
+      <div class="kicker">Pluggable LLM providers</div>
+      <h2>One <span class="accent">switch</span>, many backends</h2>
+      <p class="lead">A single <span class="mono">use-*</span> command re-points both <span class="mono">claude</span> and <span class="mono">opencode</span> at a different provider and keeps them in sync. The choice persists across restarts and rebuilds.</p>
+
+      <div class="grid mt-l" style="gap:14px">
+        <div class="switch-row">
+          <span class="cmd-chip def">use-anthropic</span>
+          <span><strong>Anthropic subscription (OAuth)</strong> &mdash; the default. No static key on disk; the leaked key is actively unset in each new shell. <span style="color:var(--text-faint)">&#9733; recommended</span></span>
+        </div>
+        <div class="switch-row">
+          <span class="cmd-chip">use-foundry</span>
+          <span><strong>Azure AI Foundry (Entra ID)</strong> &mdash; the keyless enterprise alternative, browser-login flow supported in-container.</span>
+        </div>
+        <div class="switch-row">
+          <span class="cmd-chip">use-anthropic-key</span>
+          <span><strong>Anthropic API key / gateway</strong> &mdash; the static-credential fallback, selected explicitly when you need it.</span>
+        </div>
+        <div class="switch-row">
+          <span class="cmd-chip">copilot</span>
+          <span><strong>GitHub Copilot</strong> &mdash; Copilot-backed models via opencode and the Copilot CLI (enable the <span class="mono">copilot</span> feature-set).</span>
+        </div>
+      </div>
+
+      <div class="callout mt-l">
+        <b>OAuth / Entra first, static keys deprioritised.</b> Identity-based auth means there&rsquo;s no long-lived secret sitting in the workspace for an agent to read &mdash; and the firewall narrows the exfil surface even when a key is in use.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 8 — GET STARTED + CLOSE ============ -->
+  <section class="slide" data-title="Get started">
+    <div class="slide-inner">
+      <div class="kicker">Get started · and how it compares</div>
+      <h2>Drop it in. <span class="accent">Reopen in container.</span> Done.</h2>
+
+      <div class="grid cols-2-1 mt-m">
+        <div class="steps">
+          <div class="step"><div class="num"></div><div><div class="t">Copy <code>.devcontainer/</code> into your repo</div><div class="d">Plus the bundled skills and the <code>CLAUDE.md</code> / <code>AGENTS.md</code> firewall note.</div></div></div>
+          <div class="step"><div class="num"></div><div><div class="t">&ldquo;Reopen in Container&rdquo;</div><div class="d">From VS Code / Cursor, or <code>devcontainer up</code>. First build is a few minutes; later starts, seconds.</div></div></div>
+          <div class="step"><div class="num"></div><div><div class="t">Run an agent</div><div class="d">A terminal auto-opens. Type <code>claude</code>, <code>opencode</code>, or <code>copilot</code> &mdash; default auth is Claude on an Anthropic subscription.</div></div></div>
+        </div>
+
+        <div>
+          <table class="cmp">
+            <thead><tr><th></th><th class="us">This project</th><th>microVM tools</th></tr></thead>
+            <tbody>
+              <tr><td class="feat">Lifecycle</td><td class="us">Persistent, project-scoped</td><td class="them">Disposable per session</td></tr>
+              <tr><td class="feat">Network</td><td class="us">Auditable allowlist proxy</td><td class="them">VM-boundary filter</td></tr>
+              <tr><td class="feat">IDE</td><td class="us">First-class devcontainer</td><td class="them">CLI wrapper</td></tr>
+              <tr><td class="feat">Deps</td><td class="us">Docker + Squid, no vendor lock-in</td><td class="them">Proprietary runtime</td></tr>
+            </tbody>
+          </table>
+          <p class="footnote">vs. Docker Sandboxes &amp; Microsoft MXC &mdash; isolation depth vs. a long-lived, inspectable, committable environment.</p>
+        </div>
+      </div>
+
+      <div class="callout mt-l">
+        <b>No proprietary dependencies.</b> Docker Compose, Squid, Unix network namespaces, OAuth/Entra, VS Code devcontainers &mdash; all battle-tested and already in reach. <b>If you can run <span class="mono">docker compose up</span>, you can use this.</b>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- ============ CHROME ============ -->
+<div id="chrome">
+  <button class="nav-btn" id="prev" aria-label="Previous slide">&#8592;</button>
+  <div id="dots"></div>
+  <div class="nav-group">
+    <span id="counter"><b>1</b> / 8</span>
+    <button class="nav-btn" id="next" aria-label="Next slide">&#8594;</button>
+  </div>
+</div>
+
+<div class="hint">
+  <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> navigate &nbsp;·&nbsp; <kbd>1</kbd>&ndash;<kbd>8</kbd> jump
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var total  = slides.length;
+  var idx     = 0;
+
+  var elProgress = document.getElementById("progress");
+  var elCounter  = document.getElementById("counter");
+  var elPrev     = document.getElementById("prev");
+  var elNext     = document.getElementById("next");
+  var elDots     = document.getElementById("dots");
+
+  // Build dot navigation
+  slides.forEach(function (s, i) {
+    var d = document.createElement("button");
+    d.className = "dot-nav";
+    d.setAttribute("aria-label", "Go to slide " + (i + 1) + ": " + (s.dataset.title || ""));
+    d.title = (i + 1) + ". " + (s.dataset.title || "");
+    d.addEventListener("click", function () { go(i); });
+    elDots.appendChild(d);
+  });
+  var dots = Array.prototype.slice.call(elDots.children);
+
+  function render() {
+    slides.forEach(function (s, i) {
+      s.classList.remove("active", "prev");
+      if (i === idx) {
+        s.classList.add("active");
+        s.scrollTop = 0;
+      } else if (i < idx) {
+        s.classList.add("prev");
+      }
+    });
+    dots.forEach(function (d, i) { d.classList.toggle("active", i === idx); });
+    elProgress.style.width = ((idx + 1) / total * 100) + "%";
+    elCounter.innerHTML = "<b>" + (idx + 1) + "</b> / " + total;
+    elPrev.disabled = (idx === 0);
+    elNext.disabled = (idx === total - 1);
+    if (location.hash !== "#" + (idx + 1)) {
+      history.replaceState(null, "", "#" + (idx + 1));
+    }
+  }
+
+  function go(n) {
+    n = Math.max(0, Math.min(total - 1, n));
+    if (n === idx) return;
+    idx = n;
+    render();
+  }
+  function next() { go(idx + 1); }
+  function prev() { go(idx - 1); }
+
+  // Buttons
+  elNext.addEventListener("click", next);
+  elPrev.addEventListener("click", prev);
+
+  // Side click zones
+  Array.prototype.slice.call(document.querySelectorAll(".clickzone")).forEach(function (z) {
+    z.addEventListener("click", function () {
+      if (z.dataset.dir === "next") next(); else prev();
+    });
+  });
+
+  // Keyboard
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    switch (e.key) {
+      case "ArrowRight":
+      case "PageDown":
+        next(); e.preventDefault(); break;
+      case "ArrowLeft":
+      case "PageUp":
+        prev(); e.preventDefault(); break;
+      case " ":
+        if (e.shiftKey) { prev(); } else { next(); }
+        e.preventDefault(); break;
+      case "Home":
+        go(0); e.preventDefault(); break;
+      case "End":
+        go(total - 1); e.preventDefault(); break;
+      default:
+        if (e.key >= "1" && e.key <= "9") {
+          var n = parseInt(e.key, 10) - 1;
+          if (n < total) { go(n); e.preventDefault(); }
+        }
+    }
+  });
+
+  // Deep-link via hash on load
+  var start = parseInt((location.hash || "").replace("#", ""), 10);
+  if (!isNaN(start) && start >= 1 && start <= total) {
+    idx = start - 1;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
