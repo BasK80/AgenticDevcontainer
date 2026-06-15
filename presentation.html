@@ -663,7 +663,7 @@
           <ul>
             <li>Domain allowlist proxy</li>
             <li>On <span class="mono">internal</span> + <span class="mono">egress</span></li>
-            <li>Filters every request</li>
+            <li>Filters &amp; audit-logs every request</li>
           </ul>
         </div>
       </div>
@@ -708,6 +708,7 @@
             <li><span class="b">&#9656;</span><span><strong>Baseline + feature-sets.</strong> A tiny always-on baseline plus toggleable sets (<span class="mono">anthropic</span>, <span class="mono">github</span>, <span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;). Turn off what you don&rsquo;t use to shrink the exfil surface.</span></li>
             <li><span class="b">&#9656;</span><span><strong>Readable 403, not a cryptic failure.</strong> A blocked request returns a plain-text page explaining the host is off the allowlist &mdash; so agents surface actionable guidance instead of retrying.</span></li>
             <li><span class="b">&#9656;</span><span><strong>Hot-reload &amp; live dashboard.</strong> Changes take effect in <span class="mono">~5s</span>; a localhost-only dashboard streams every request, green (allowed) / red (denied).</span></li>
+            <li><span class="b">&#9656;</span><span><strong>Long-term audit log.</strong> Every request &mdash; allowed and denied &mdash; is persisted to a SQLite log (retention configurable, default <span class="mono">2 months</span>). Query it by time / host / decision via <span class="mono">fw audit</span> or the dashboard, and export any period to CSV.</span></li>
           </ul>
         </div>
 
@@ -719,6 +720,8 @@
               <div class="ok">&#10003; allowed pypi.org (permanent)</div>
               <div style="margin-top:8px"><span class="pr">$</span> <span class="cm">fw feature on azure</span></div>
               <div class="ok">&#10003; azure feature-set enabled</div>
+              <div style="margin-top:8px"><span class="pr">$</span> <span class="cm">fw audit --status denied</span></div>
+              <div class="dim">09/Jun:12:34:56 <span class="err">TCP_DENIED/403</span> CONNECT evil.example:443</div>
             </div>
           </div>
           <div class="pill-row">

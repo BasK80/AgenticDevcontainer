@@ -6,6 +6,7 @@
 #   docker exec      "$FW" fw list
 #   docker exec      "$FW" fw blocks
 #   docker exec      "$FW" fw feature list|on <name>|off <name>
+#   docker exec      "$FW" fw audit [--from D] [--to D] [--host P] [--status denied|allowed] [--limit N]
 #   docker exec -it  "$FW" fw log
 set -euo pipefail
 
@@ -105,6 +106,7 @@ case "${1:-}" in
   list)    cat /policy/allowlist.acl ;;
   blocks)  tail -n 30 /var/log/squid/access.log ;;
   log)     exec tail -f /var/log/squid/access.log ;;
+  audit)   shift; exec /usr/local/bin/auditlog.py query "$@" ;;
   feature)
     sub="${2:-list}"
     case "$sub" in
@@ -146,6 +148,7 @@ case "${1:-}" in
   *)
     echo "usage: fw allow <domain> [ttl_seconds] | fw deny <domain> | fw list | fw blocks | fw log"
     echo "       fw feature list | on <name> | off <name>"
+    echo "       fw audit [--from DATE] [--to DATE] [--host PATTERN] [--status denied|allowed] [--limit N]"
     echo ""
     echo "run from the host as:"
     echo "  FW=\"claude-\$(basename \"\$PWD\")-firewall\""

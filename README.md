@@ -22,6 +22,7 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 
 - **Default-DENY outbound network** via a separate `firewall` container (Squid). The dev container has no direct route to the internet — all egress goes through a domain allowlist.
 - **Out-of-band management plane.** The `control` container (dashboard + CLI) is on a separate network and is unreachable from `development` — an agent cannot modify its own allowlist.
+- **Long-term audit log.** Every proxied request is recorded to a SQLite audit log (configurable retention, default 2 months), queryable from the host (`fw audit`) and the dashboard, with CSV export — an agent cannot reach or tamper with it.
 - **Non-root user, no sudo.** Container runs as `devuser` (UID 1000).
 - **No Docker socket.** `/var/run/docker.sock` is not mounted.
 - **Resource limits.** CPU (4 cores), memory (8 GB), PID (512) caps.
@@ -56,9 +57,23 @@ docker exec "$FW" fw allow pypi.org          # permanent allow
 docker exec "$FW" fw deny  pypi.org          # remove
 docker exec "$FW" fw feature on azure        # enable a feature-set
 docker exec "$FW" fw blocks                  # recent blocked requests
+docker exec "$FW" fw audit --status denied   # query the long-term audit log
 ```
 
 A web dashboard is available at **<http://127.0.0.1:8088>**. See **[docs/allowlist.md](docs/allowlist.md)** for full reference including feature-sets, TTL allows, debugging, and the block feed.
+
+### Audit log
+
+Every proxied request (allowed and denied) is recorded to a long-term audit log — a SQLite database in the `firewall` container, on its own `auditlog` volume. Query it from the host with `fw audit`, or from the dashboard's **Audit Log** card (filter by time range / host / decision, then download the period as CSV):
+
+```bash
+FW="claude-$(basename "$PWD")-firewall"
+docker exec "$FW" fw audit                                   # last 50 entries
+docker exec "$FW" fw audit --from 2026-06-01 --to 2026-06-10 # by date range
+docker exec "$FW" fw audit --host github.com --status allowed
+```
+
+Retention defaults to **2 months** and is pruned daily. Override it per project by setting `AUDIT_RETENTION_DAYS` in `.devcontainer/.env` (e.g. `AUDIT_RETENTION_DAYS=90`).
 
 ## Documentation
 

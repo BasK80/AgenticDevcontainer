@@ -51,4 +51,8 @@ rm -f /run/squid.pid
 /usr/local/bin/watcher.sh &
 /usr/local/bin/blockfeed.sh &
 
+# Long-term audit log: tail access.log into SQLite on the auditlog volume.
+mkdir -p /auditlog 2>/dev/null || true
+/usr/local/bin/auditlog.py &
+
 exec squid -N -d1

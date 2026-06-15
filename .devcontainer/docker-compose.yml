@@ -9,6 +9,12 @@ services:
     volumes:
       - "policy:/policy"
       - "logs:/var/log/squid"
+      - "auditlog:/auditlog"
+    environment:
+      # Long-term audit-log retention. Rows older than this are pruned daily
+      # by auditlog.py. Override per-project in .env (AUDIT_RETENTION_DAYS).
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS:-60}
+      TZ: ${TZ:-UTC}
     healthcheck:
       test: ["CMD-SHELL", "pgrep squid >/dev/null || exit 1"]
       interval: 5s
@@ -86,6 +92,7 @@ services:
     volumes:
       - "policy:/policy"
       - "logs:/var/log/squid:ro"
+      - "auditlog:/auditlog:ro"
     restart: unless-stopped
 
 networks:
@@ -101,6 +108,8 @@ volumes:
     name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-policy
   logs:
     name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-logs
+  auditlog:
+    name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-auditlog
   claude:
     name: ${LOCAL_WORKSPACE_FOLDER_BASENAME}-claude
   claude-json:

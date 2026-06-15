@@ -12,9 +12,11 @@ source of truth.
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import time
 import urllib.parse
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ---------------------------------------------------------------------------
@@ -26,10 +28,12 @@ TTL_FILE    = os.environ.get("TTL_FILE",      "/policy/ttl.tsv")
 DEFS_DIR    = os.environ.get("FEATURE_DEFS",  "/policy/features.defs")
 STATE_FILE  = os.environ.get("FEATURE_STATE", "/policy/features.state")
 LOG_FILE    = os.environ.get("LOG_FILE",      "/var/log/squid/access.log")
+AUDIT_DB    = os.environ.get("AUDIT_DB",      "/auditlog/audit.db")
 ALLOW_CMD   = os.environ.get("ALLOW_CMD",     "/usr/local/bin/allow")
 DENY_CMD    = os.environ.get("DENY_CMD",      "/usr/local/bin/deny")
 FEATURE_CMD = os.environ.get("FEATURE_CMD",   "/usr/local/bin/feature")
 MAX_BODY    = 4096   # bytes — cap on POST body
+AUDIT_MAX_ROWS = 1000   # server-side cap on /api/audit (download is uncapped)
 
 # ---------------------------------------------------------------------------
 # Security helpers
@@ -236,6 +240,88 @@ def _read_blocks(limit=200):
     return result[:limit]
 
 # ---------------------------------------------------------------------------
+# Audit log (read-only SQLite on the `auditlog` volume; written by the
+# firewall container's auditlog.py). Query semantics mirror `fw audit`.
+# ---------------------------------------------------------------------------
+def _parse_date_local(s, end_of_day=False):
+    """Parse 'YYYY-MM-DD' / 'YYYY-MM-DD HH:MM[:SS]' (local tz) -> epoch int.
+
+    Bare dates resolve in the container's local timezone to match how the logs
+    and dashboard display time. A bare `to` date covers the whole day.
+    """
+    s = s.strip().replace("T", " ")
+    if " " in s:
+        fmt = "%Y-%m-%d %H:%M:%S" if s.count(":") == 2 else "%Y-%m-%d %H:%M"
+    else:
+        fmt = "%Y-%m-%d"
+    dt = datetime.strptime(s, fmt)
+    if " " not in s and end_of_day:
+        dt = dt.replace(hour=23, minute=59, second=59)
+    return int(dt.astimezone().timestamp())
+
+def _audit_query(frm=None, to=None, host=None, status=None, limit=200):
+    """Run a filtered query against the audit DB. Returns a list of dict rows
+    (most-recent first). Raises sqlite3.Error if the DB is unreadable."""
+    if not os.path.isfile(AUDIT_DB):
+        return []
+    where, params = [], []
+    if frm is not None:
+        where.append("ts >= ?"); params.append(int(frm))
+    if to is not None:
+        where.append("ts <= ?"); params.append(int(to))
+    if host:
+        where.append("host LIKE ?"); params.append("%" + host + "%")
+    if status == "denied":
+        where.append("squid_status LIKE '%DENIED%'")
+    elif status == "allowed":
+        where.append("squid_status NOT LIKE '%DENIED%'")
+    sql = ("SELECT ts, ts_text, client_ip, squid_status, http_code, "
+           "method, url, host FROM audit_log")
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY ts DESC, id DESC"
+    if limit is not None:
+        sql += " LIMIT ?"; params.append(int(limit))
+
+    db = sqlite3.connect("file:" + AUDIT_DB + "?mode=ro", uri=True, timeout=5)
+    try:
+        cur = db.execute(sql, params)
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    finally:
+        db.close()
+
+def _audit_params(qs):
+    """Translate a parsed query string (dict of lists) into _audit_query kwargs.
+    Returns (kwargs, error_message). error_message is None on success."""
+    def one(name):
+        v = qs.get(name, [None])[0]
+        return v.strip() if isinstance(v, str) else v
+
+    kw = {}
+    try:
+        frm = one("from")
+        to  = one("to")
+        kw["frm"] = _parse_date_local(frm) if frm else None
+        kw["to"]  = _parse_date_local(to, end_of_day=True) if to else None
+    except ValueError:
+        return None, "dates must be YYYY-MM-DD or 'YYYY-MM-DD HH:MM:SS'"
+
+    host = one("host")
+    if host:
+        if len(host) > 253 or any(c in host for c in " \t\r\n'\";\\"):
+            return None, "invalid host filter"
+        kw["host"] = host
+
+    status = one("status")
+    if status in ("denied", "allowed"):
+        kw["status"] = status
+    elif status:
+        return None, "status must be 'denied' or 'allowed'"
+
+    return kw, None
+
+# ---------------------------------------------------------------------------
 # Embedded single-page UI
 # ---------------------------------------------------------------------------
 _HTML = """<!DOCTYPE html>
@@ -321,6 +407,20 @@ tr:last-child td{border-bottom:none}
 .act-group{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .countdown{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted)}
 .empty-td{color:var(--muted);font-style:italic;text-align:center;padding:16px !important}
+/* Audit log */
+.audit-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
+            padding:10px 14px;border-bottom:1px solid var(--border)}
+.audit-form label{font-size:11px;color:var(--muted);display:flex;
+                  align-items:center;gap:4px}
+.audit-form select{padding:4px 6px;border:1px solid var(--border);
+                   border-radius:4px;background:var(--surface);
+                   color:var(--text);font-size:12px;font-family:inherit}
+.au-dec{font-size:10px;font-weight:700;text-transform:uppercase;
+        letter-spacing:.04em;padding:1px 6px;border-radius:4px}
+.au-dec.allowed{background:var(--green);color:#fff}
+.au-dec.denied{background:var(--red);color:#fff}
+.td-url{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted);
+        max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Feature sets */
 #featBody td{vertical-align:top}
 .feat-name{font-weight:600;font-size:13px}
@@ -405,6 +505,34 @@ tr:last-child td{border-bottom:none}
     </table>
   </div>
 
+  <!-- Audit log -->
+  <div class="card">
+    <div class="card-hdr"><h2>Audit Log</h2>
+      <span class="feat-meta">long-term history of all proxied traffic &mdash; query a period, then download as CSV</span>
+    </div>
+    <div class="audit-form">
+      <label>From <input type="text" id="auFrom" placeholder="YYYY-MM-DD" style="width:150px"></label>
+      <label>To <input type="text" id="auTo" placeholder="YYYY-MM-DD" style="width:150px"></label>
+      <label>Host <input type="text" id="auHost" placeholder="substring&#8230;" style="width:150px"></label>
+      <label>Status
+        <select id="auStatus">
+          <option value="">all</option>
+          <option value="denied">denied</option>
+          <option value="allowed">allowed</option>
+        </select>
+      </label>
+      <button id="auQuery" class="btn-primary">Query</button>
+      <button id="auReset">Reset</button>
+      <span style="flex:1"></span>
+      <button id="auDownload" class="btn-success">Download CSV</button>
+    </div>
+    <div id="auMeta" class="sub-label"></div>
+    <table>
+      <thead><tr><th>Time</th><th>Decision</th><th>Code</th><th>Method</th><th>Host</th><th>URL</th></tr></thead>
+      <tbody id="auditBody"></tbody>
+    </table>
+  </div>
+
 </div><!-- .wrap -->
 
 <div id="toasts"></div>
@@ -436,6 +564,12 @@ var tempB   = document.getElementById('tempBody');
 var baseB   = document.getElementById('baseBody');
 var blkB    = document.getElementById('blocksBody');
 var toastsEl = document.getElementById('toasts');
+var auFrom  = document.getElementById('auFrom');
+var auTo    = document.getElementById('auTo');
+var auHost  = document.getElementById('auHost');
+var auStatus = document.getElementById('auStatus');
+var auBody  = document.getElementById('auditBody');
+var auMeta  = document.getElementById('auMeta');
 
 // ---- Restore persisted preferences ----
 sFilt.value = filter;
@@ -657,6 +791,65 @@ function renderBlocks(data) {
   }).join('');
 }
 
+// ---- Audit log ----
+function auditQS() {
+  var p = [];
+  if (auFrom.value.trim())  p.push('from='   + encodeURIComponent(auFrom.value.trim()));
+  if (auTo.value.trim())    p.push('to='     + encodeURIComponent(auTo.value.trim()));
+  if (auHost.value.trim())  p.push('host='   + encodeURIComponent(auHost.value.trim()));
+  if (auStatus.value)       p.push('status=' + encodeURIComponent(auStatus.value));
+  return p;
+}
+
+function renderAudit(data) {
+  var rows = (data && data.entries) || [];
+  if (!rows.length) {
+    auBody.innerHTML = '<tr><td class="empty-td" colspan="6">No matching audit entries</td></tr>';
+    auMeta.textContent = '';
+    return;
+  }
+  auMeta.textContent = 'Showing ' + rows.length + ' entr' + (rows.length === 1 ? 'y' : 'ies')
+    + (data.count >= data.limit ? ' (capped at ' + data.limit + ' \u2014 narrow the range or download CSV for all)' : '');
+  auBody.innerHTML = rows.map(function(r) {
+    var dec = (r.squid_status && r.squid_status.indexOf('DENIED') >= 0) ? 'denied' : 'allowed';
+    return '<tr>'
+      + '<td class="td-ts">' + esc(r.ts_text) + '</td>'
+      + '<td><span class="au-dec ' + dec + '">' + dec + '</span></td>'
+      + '<td class="td-count" style="text-align:left">' + esc(r.http_code == null ? '-' : r.http_code) + '</td>'
+      + '<td>' + esc(r.method || '') + '</td>'
+      + '<td class="td-domain">' + esc(r.host || '') + '</td>'
+      + '<td class="td-url" title="' + esc(r.url || '') + '">' + esc(r.url || '') + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+function refreshAudit() {
+  var qs = auditQS();
+  fetch('/api/audit' + (qs.length ? '?' + qs.join('&') : '')).then(function(r) {
+    return r.json().then(function(j) {
+      if (!r.ok) throw new Error(j.error || r.statusText);
+      renderAudit(j);
+    });
+  }).catch(function(e) {
+    auBody.innerHTML = '<tr><td class="empty-td" colspan="6">Error: ' + esc(e.message) + '</td></tr>';
+    auMeta.textContent = '';
+  });
+}
+
+document.getElementById('auQuery').addEventListener('click', refreshAudit);
+document.getElementById('auReset').addEventListener('click', function() {
+  auFrom.value = ''; auTo.value = ''; auHost.value = ''; auStatus.value = '';
+  refreshAudit();
+});
+document.getElementById('auDownload').addEventListener('click', function() {
+  var qs = auditQS();
+  window.location.href = '/api/audit/download' + (qs.length ? '?' + qs.join('&') : '');
+});
+[auFrom, auTo, auHost].forEach(function(el) {
+  el.addEventListener('keydown', function(ev) { if (ev.key === 'Enter') refreshAudit(); });
+});
+auStatus.addEventListener('change', refreshAudit);
+
 // ---- Event delegation ----
 function delegate(tbody, handler) {
   tbody.addEventListener('click', function(ev) {
@@ -763,6 +956,7 @@ function tickCountdowns() {
 
 // ---- Boot ----
 refreshAll();
+refreshAudit();
 setInterval(refreshAll, 5000);
 setInterval(tickCountdowns, 1000);
 </script>
@@ -824,6 +1018,10 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(_read_features())
         elif path == "/api/blocks":
             self._json(_read_blocks())
+        elif path == "/api/audit":
+            self._audit_json()
+        elif path == "/api/audit/download":
+            self._audit_csv()
         elif path == "/api/stream":
             self._sse()
         else:
@@ -879,6 +1077,58 @@ class _Handler(BaseHTTPRequestHandler):
 
         else:
             self._json({"error": "Not found"}, 404)
+
+    # ------------------------------------------------------------------
+    def _audit_json(self):
+        qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        kw, err = _audit_params(qs)
+        if err:
+            self._json({"error": err}, 400)
+            return
+        # limit: default 200, capped at AUDIT_MAX_ROWS
+        try:
+            limit = int(qs.get("limit", ["200"])[0])
+        except (ValueError, TypeError):
+            limit = 200
+        limit = max(1, min(limit, AUDIT_MAX_ROWS))
+        kw["limit"] = limit
+        try:
+            rows = _audit_query(**kw)
+        except sqlite3.Error as e:
+            self._json({"error": "audit db unavailable: " + str(e)}, 503)
+            return
+        self._json({"entries": rows, "limit": limit, "count": len(rows)})
+
+    def _audit_csv(self):
+        qs = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        kw, err = _audit_params(qs)
+        if err:
+            self._json({"error": err}, 400)
+            return
+        kw["limit"] = None   # download is uncapped
+        try:
+            rows = _audit_query(**kw)
+        except sqlite3.Error as e:
+            self._json({"error": "audit db unavailable: " + str(e)}, 503)
+            return
+
+        import csv, io
+        sio = io.StringIO()
+        w = csv.writer(sio)
+        w.writerow(["timestamp", "client_ip", "squid_status", "http_code",
+                    "method", "url", "host"])
+        for r in rows:
+            w.writerow([r["ts_text"], r["client_ip"], r["squid_status"],
+                        r["http_code"], r["method"], r["url"], r["host"]])
+        body = sio.getvalue().encode("utf-8")
+        fname = "audit-" + time.strftime("%Y%m%d-%H%M%S") + ".csv"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Content-Disposition",
+                         'attachment; filename="' + fname + '"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     # ------------------------------------------------------------------
     def _sse(self):
