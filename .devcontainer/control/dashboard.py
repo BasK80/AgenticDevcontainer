@@ -347,17 +347,35 @@ _HTML = """<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
      background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
-/* Header */
-header{position:sticky;top:0;z-index:100;background:var(--surface);
-       border-bottom:1px solid var(--border);padding:10px 20px;
-       display:flex;align-items:center;gap:10px}
-header h1{font-size:15px;font-weight:600;flex:1}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);
      transition:background .4s;flex-shrink:0}
 .dot.ok{background:var(--green)}.dot.err{background:var(--red)}
-/* Layout */
-.wrap{max-width:1100px;margin:0 auto;padding:20px;
-      display:flex;flex-direction:column;gap:16px}
+/* App shell: fixed sidebar + scrolling content */
+.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+/* Sidebar */
+.sidebar{position:sticky;top:0;align-self:start;height:100vh;
+         background:var(--surface);border-right:1px solid var(--border);
+         display:flex;flex-direction:column;gap:4px;padding:14px 10px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:6px 8px 14px;
+       font-size:14px;font-weight:600;color:var(--text);
+       border-bottom:1px solid var(--border);margin-bottom:6px}
+.brand .dot{margin-left:auto}
+.nav-group{font-size:10px;font-weight:700;text-transform:uppercase;
+           letter-spacing:.07em;color:var(--muted);padding:12px 8px 4px}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;
+          border-radius:5px;font-size:13px;font-weight:500;color:var(--muted);
+          cursor:pointer;border:none;background:none;width:100%;text-align:left;
+          font-family:inherit;transition:background .12s,color .12s}
+.nav-item:hover{background:var(--bg);color:var(--text);opacity:1}
+.nav-item.active{background:var(--accent);color:#fff;font-weight:600}
+.nav-item.active:hover{background:var(--accent);color:#fff}
+.nav-item .nav-dot{margin-left:auto}
+/* Content area: one view visible at a time */
+.content{min-width:0;padding:20px;display:block}
+.view{max-width:1100px;margin:0 auto;
+      flex-direction:column;gap:16px}
+.view{display:none}
+.view.active{display:flex}
 /* Cards */
 .card{background:var(--surface);border:1px solid var(--border);
       border-radius:var(--radius);overflow:hidden}
@@ -391,7 +409,6 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 .s-method{color:var(--muted);font-size:10px;width:46px;flex-shrink:0}
 .s-host{font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .s-ts{color:var(--muted);font-size:10px;flex-shrink:0;white-space:nowrap}
-.stream-collapsed #stream-list{display:none}
 /* Sub-labels */
 .sub-label{font-size:11px;font-weight:600;text-transform:uppercase;
            letter-spacing:.05em;color:var(--muted);padding:8px 14px 4px}
@@ -442,106 +459,138 @@ tr:last-child td{border-bottom:none}
 .toast.ok{background:var(--green);color:#fff}
 .toast.err{background:var(--red);color:#fff}
 @keyframes fin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+/* Narrow screens: sidebar becomes a horizontal nav row above the content */
+@media(max-width:700px){
+  .shell{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto;flex-direction:row;flex-wrap:wrap;
+           align-items:center;gap:4px;border-right:none;
+           border-bottom:1px solid var(--border)}
+  .brand{border-bottom:none;margin:0;padding:6px 8px;width:100%}
+  .nav-group{display:none}
+  .nav-item{width:auto}
+  .nav-item .nav-dot{display:none}
+}
 </style>
 </head>
 <body>
 
-<header>
-  <h1>AgenticDevcontainer Firewall</h1>
-  <span class="dot" id="dot" title="Live stream connection"></span>
-  <button id="btnToggle">Hide live stream</button>
-</header>
+<div class="shell">
 
-<div class="wrap">
-
-  <!-- Live stream -->
-  <div class="card" id="streamCard">
-    <div class="card-hdr">
-      <h2>Live Traffic</h2>
-      <input type="text" id="streamFilter" placeholder="Filter by host&#8230;" style="width:160px">
-      <button id="btnPause">Pause</button>
-      <button id="btnClear">Clear</button>
+  <!-- Sidebar navigation -->
+  <nav class="sidebar">
+    <div class="brand">
+      Firewall
+      <span class="dot" id="dot" title="Live stream connection"></span>
     </div>
-    <div id="stream-list"></div>
-  </div>
+    <div class="nav-group">Monitor</div>
+    <button class="nav-item" data-view="overview">Overview
+      <span class="dot nav-dot" id="navDot" title="Live stream connection"></span>
+    </button>
+    <button class="nav-item" data-view="audit">Audit Log</button>
+    <div class="nav-group">Configure</div>
+    <button class="nav-item" data-view="features">Feature Sets</button>
+    <button class="nav-item" data-view="allowlist">Allowlist</button>
+  </nav>
 
-  <!-- Feature sets -->
-  <div class="card">
-    <div class="card-hdr"><h2>Feature sets</h2>
-      <span class="feat-meta">toggle the domain groups this project needs &mdash; disable the agentic frameworks you don't use</span>
-    </div>
-    <table>
-      <thead><tr><th>Feature</th><th>Domains</th><th class="tog">State</th></tr></thead>
-      <tbody id="featBody"></tbody>
-    </table>
-  </div>
+  <!-- Content: one view visible at a time -->
+  <main class="content">
 
-  <!-- Allowlist -->
-  <div class="card">
-    <div class="card-hdr"><h2>Allowlist</h2></div>
-    <div class="sub-label">Manual (permanent)</div>
-    <table>
-      <thead><tr><th>Domain</th><th></th></tr></thead>
-      <tbody id="permBody"></tbody>
-    </table>
-    <div class="sub-label" style="margin-top:4px">Temporary</div>
-    <table>
-      <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
-      <tbody id="tempBody"></tbody>
-    </table>
-    <div class="sub-label" style="margin-top:4px">Baseline (always on)</div>
-    <table>
-      <thead><tr><th>Domain</th><th></th></tr></thead>
-      <tbody id="baseBody"></tbody>
-    </table>
-  </div>
+    <!-- ===== Overview: live traffic + recently blocked ===== -->
+    <section class="view" id="view-overview">
+      <div class="card" id="streamCard">
+        <div class="card-hdr">
+          <h2>Live Traffic</h2>
+          <input type="text" id="streamFilter" placeholder="Filter by host&#8230;" style="width:160px">
+          <button id="btnPause">Pause</button>
+          <button id="btnClear">Clear</button>
+        </div>
+        <div id="stream-list"></div>
+      </div>
 
-  <!-- Recently blocked -->
-  <div class="card">
-    <div class="card-hdr"><h2>Recently Blocked</h2></div>
-    <table>
-      <thead><tr><th>Domain</th><th>Last seen</th><th style="text-align:right">Count</th><th>Allow</th></tr></thead>
-      <tbody id="blocksBody"></tbody>
-    </table>
-  </div>
+      <div class="card">
+        <div class="card-hdr"><h2>Recently Blocked</h2></div>
+        <table>
+          <thead><tr><th>Domain</th><th>Last seen</th><th style="text-align:right">Count</th><th>Allow</th></tr></thead>
+          <tbody id="blocksBody"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <!-- Audit log -->
-  <div class="card">
-    <div class="card-hdr"><h2>Audit Log</h2>
-      <span class="feat-meta">long-term history of all proxied traffic &mdash; query a period, then download as CSV</span>
-    </div>
-    <div class="audit-form">
-      <label>From <input type="text" id="auFrom" placeholder="YYYY-MM-DD" style="width:150px"></label>
-      <label>To <input type="text" id="auTo" placeholder="YYYY-MM-DD" style="width:150px"></label>
-      <label>Host <input type="text" id="auHost" placeholder="substring&#8230;" style="width:150px"></label>
-      <label>Status
-        <select id="auStatus">
-          <option value="">all</option>
-          <option value="denied">denied</option>
-          <option value="allowed">allowed</option>
-        </select>
-      </label>
-      <button id="auQuery" class="btn-primary">Query</button>
-      <button id="auReset">Reset</button>
-      <span style="flex:1"></span>
-      <button id="auDownload" class="btn-success">Download CSV</button>
-    </div>
-    <div id="auMeta" class="sub-label"></div>
-    <table>
-      <thead><tr><th>Time</th><th>Decision</th><th>Code</th><th>Method</th><th>Host</th><th>URL</th></tr></thead>
-      <tbody id="auditBody"></tbody>
-    </table>
-  </div>
+    <!-- ===== Audit log ===== -->
+    <section class="view" id="view-audit">
+      <div class="card">
+        <div class="card-hdr"><h2>Audit Log</h2>
+          <span class="feat-meta">long-term history of all proxied traffic &mdash; query a period, then download as CSV</span>
+        </div>
+        <div class="audit-form">
+          <label>From <input type="text" id="auFrom" placeholder="YYYY-MM-DD" style="width:150px"></label>
+          <label>To <input type="text" id="auTo" placeholder="YYYY-MM-DD" style="width:150px"></label>
+          <label>Host <input type="text" id="auHost" placeholder="substring&#8230;" style="width:150px"></label>
+          <label>Status
+            <select id="auStatus">
+              <option value="">all</option>
+              <option value="denied">denied</option>
+              <option value="allowed">allowed</option>
+            </select>
+          </label>
+          <button id="auQuery" class="btn-primary">Query</button>
+          <button id="auReset">Reset</button>
+          <span style="flex:1"></span>
+          <button id="auDownload" class="btn-success">Download CSV</button>
+        </div>
+        <div id="auMeta" class="sub-label"></div>
+        <table>
+          <thead><tr><th>Time</th><th>Decision</th><th>Code</th><th>Method</th><th>Host</th><th>URL</th></tr></thead>
+          <tbody id="auditBody"></tbody>
+        </table>
+      </div>
+    </section>
 
-</div><!-- .wrap -->
+    <!-- ===== Feature sets ===== -->
+    <section class="view" id="view-features">
+      <div class="card">
+        <div class="card-hdr"><h2>Feature sets</h2>
+          <span class="feat-meta">toggle the domain groups this project needs &mdash; disable the agentic frameworks you don't use</span>
+        </div>
+        <table>
+          <thead><tr><th>Feature</th><th>Domains</th><th class="tog">State</th></tr></thead>
+          <tbody id="featBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ===== Allowlist ===== -->
+    <section class="view" id="view-allowlist">
+      <div class="card">
+        <div class="card-hdr"><h2>Allowlist</h2></div>
+        <div class="sub-label">Manual (permanent)</div>
+        <table>
+          <thead><tr><th>Domain</th><th></th></tr></thead>
+          <tbody id="permBody"></tbody>
+        </table>
+        <div class="sub-label" style="margin-top:4px">Temporary</div>
+        <table>
+          <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
+          <tbody id="tempBody"></tbody>
+        </table>
+        <div class="sub-label" style="margin-top:4px">Baseline (always on)</div>
+        <table>
+          <thead><tr><th>Domain</th><th></th></tr></thead>
+          <tbody id="baseBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div><!-- .shell -->
 
 <div id="toasts"></div>
 
 <script>
 // ---- Constants / keys ----
-var LS_HIDDEN = 'fw.streamHidden';
 var LS_FILTER = 'fw.streamFilter';
 var MAX_ENTRIES = 500;
+var VIEWS = ['overview', 'audit', 'features', 'allowlist'];
 
 // ---- State ----
 var entries = [];
@@ -549,15 +598,15 @@ var paused  = false;
 var hovering = false;
 var filter  = localStorage.getItem(LS_FILTER) || '';
 var sse     = null;
+var currentView = 'overview';
 
 // ---- Elements ----
 var dot     = document.getElementById('dot');
-var sCard   = document.getElementById('streamCard');
+var navDot  = document.getElementById('navDot');
 var sList   = document.getElementById('stream-list');
 var sFilt   = document.getElementById('streamFilter');
 var btnP    = document.getElementById('btnPause');
 var btnC    = document.getElementById('btnClear');
-var btnT    = document.getElementById('btnToggle');
 var featB   = document.getElementById('featBody');
 var permB   = document.getElementById('permBody');
 var tempB   = document.getElementById('tempBody');
@@ -570,13 +619,10 @@ var auHost  = document.getElementById('auHost');
 var auStatus = document.getElementById('auStatus');
 var auBody  = document.getElementById('auditBody');
 var auMeta  = document.getElementById('auMeta');
+var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
 
 // ---- Restore persisted preferences ----
 sFilt.value = filter;
-if (localStorage.getItem(LS_HIDDEN) === '1') {
-  sCard.classList.add('stream-collapsed');
-  btnT.textContent = 'Show live stream';
-}
 
 // ---- Utilities ----
 function esc(s) {
@@ -675,22 +721,20 @@ sList.addEventListener('mouseleave', function(){
   if (!paused) sList.scrollTop = sList.scrollHeight;
 });
 
-btnT.addEventListener('click', function() {
-  var hidden = sCard.classList.toggle('stream-collapsed');
-  btnT.textContent = hidden ? 'Show live stream' : 'Hide live stream';
-  localStorage.setItem(LS_HIDDEN, hidden ? '1' : '0');
-});
-
 // ---- SSE ----
+function setDot(cls) {
+  if (dot)    dot.className    = 'dot ' + cls;
+  if (navDot) navDot.className = 'dot nav-dot ' + cls;
+}
 function connectSSE() {
   if (sse) sse.close();
   sse = new EventSource('/api/stream');
-  sse.addEventListener('open', function(){ dot.className = 'dot ok'; });
+  sse.addEventListener('open', function(){ setDot('ok'); });
   sse.addEventListener('entry', function(ev) {
     try { pushEntry(JSON.parse(ev.data)); } catch(_){}
   });
   sse.addEventListener('error', function() {
-    dot.className = 'dot err';
+    setDot('err');
     sse.close();
     setTimeout(connectSSE, 3000);
   });
@@ -947,6 +991,13 @@ function refreshBlocks() {
 }
 function refreshAll() { refreshFeatures(); refreshAllowlist(); refreshBlocks(); }
 
+// Refresh only the data the active view needs (Audit queries on demand only).
+function refreshActiveView() {
+  if      (currentView === 'overview')  refreshBlocks();
+  else if (currentView === 'features')  refreshFeatures();
+  else if (currentView === 'allowlist') refreshAllowlist();
+}
+
 function tickCountdowns() {
   var now = Math.floor(Date.now() / 1000);
   document.querySelectorAll('.countdown[data-exp]').forEach(function(el) {
@@ -954,10 +1005,39 @@ function tickCountdowns() {
   });
 }
 
+// ---- View router (hash-based) ----
+function showView(name) {
+  if (VIEWS.indexOf(name) === -1) name = 'overview';
+  currentView = name;
+  VIEWS.forEach(function(v) {
+    var el = document.getElementById('view-' + v);
+    if (el) el.classList.toggle('active', v === name);
+  });
+  navItems.forEach(function(b) {
+    b.classList.toggle('active', b.dataset.view === name);
+  });
+  if (location.hash !== '#' + name) {
+    history.replaceState(null, '', '#' + name);
+  }
+  // Fetch fresh data for the view we just switched to.
+  if      (name === 'overview')  refreshBlocks();
+  else if (name === 'features')  refreshFeatures();
+  else if (name === 'allowlist') refreshAllowlist();
+  else if (name === 'audit')     refreshAudit();
+  // Keep the live stream pinned to the latest when returning to Overview.
+  if (name === 'overview' && !paused) sList.scrollTop = sList.scrollHeight;
+}
+
+navItems.forEach(function(b) {
+  b.addEventListener('click', function(){ showView(b.dataset.view); });
+});
+window.addEventListener('hashchange', function() {
+  showView((location.hash || '').replace('#', '') || 'overview');
+});
+
 // ---- Boot ----
-refreshAll();
-refreshAudit();
-setInterval(refreshAll, 5000);
+showView((location.hash || '').replace('#', '') || 'overview');
+setInterval(refreshActiveView, 5000);
 setInterval(tickCountdowns, 1000);
 </script>
 </body>
