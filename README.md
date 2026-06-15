@@ -12,7 +12,7 @@ A generic hardened Dev Container for running AI coding agents safely. Provides d
 
 **Ease of use is a close second.** A sandbox nobody wants to work in doesn't get used, so the container is also built to be productive and framework-agnostic — without ever relaxing the security boundary above:
 
-3. **Multiple agent frameworks, one container.** Claude Code, [opencode](docs/providers.md#github-copilot-opencode), and the [GitHub Copilot CLI](docs/providers.md#github-copilot-cli) are all installed and ready to run side by side.
+3. **Multiple agent frameworks, one container.** [Claude Code](https://claude.com/product/claude-code), [opencode](https://opencode.ai/), and the [GitHub Copilot CLI](https://github.com/features/copilot/cli) are all installed and ready to run side by side.
 
 4. **Pluggable LLM providers.** A single `use-*` switch ([`llm-switch.sh`](docs/file-guide.md#devcontainerdevelopmentllm-switchsh)) routes `claude`/`opencode` across Anthropic direct, an Anthropic API key or gateway, and Azure AI Foundry; Copilot-backed models are available through opencode and the Copilot CLI.
 
