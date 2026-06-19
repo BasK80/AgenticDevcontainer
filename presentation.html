@@ -705,7 +705,7 @@
         <div>
           <ul class="flist">
             <li><span class="b">&#9656;</span><span><strong>Domain-based, not IP.</strong> The allowlist is hostnames &mdash; resilient to CDN / Azure IP rotation, no re-resolution needed.</span></li>
-            <li><span class="b">&#9656;</span><span><strong>Baseline + feature-sets.</strong> A tiny always-on baseline plus toggleable sets (<span class="mono">anthropic</span>, <span class="mono">github</span>, <span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;). Turn off what you don&rsquo;t use to shrink the exfil surface.</span></li>
+            <li><span class="b">&#9656;</span><span><strong>Baseline + feature-sets.</strong> A tiny always-on baseline plus toggleable sets (<span class="mono">anthropic</span>, <span class="mono">github</span>, <span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;). Toggle whole categories via the dashboard or <span class="mono">fw feature on|off &lt;name&gt;</span> &mdash; takes effect in ~5&thinsp;s without a rebuild. Turn off what you don&rsquo;t use to shrink the exfil surface.</span></li>
             <li><span class="b">&#9656;</span><span><strong>Readable 403, not a cryptic failure.</strong> A blocked request returns a plain-text page explaining the host is off the allowlist &mdash; so agents surface actionable guidance instead of retrying.</span></li>
             <li><span class="b">&#9656;</span><span><strong>Hot-reload &amp; live dashboard.</strong> Changes take effect in <span class="mono">~5s</span>; a localhost-only dashboard streams every request, green (allowed) / red (denied).</span></li>
             <li><span class="b">&#9656;</span><span><strong>Long-term audit log.</strong> Every request &mdash; allowed and denied &mdash; is persisted to a SQLite log (retention configurable, default <span class="mono">2 months</span>). Query it by time / host / decision via <span class="mono">fw audit</span> or the dashboard, and export any period to CSV.</span></li>
@@ -749,14 +749,15 @@
         <div class="card good"><h3><span class="ic">&#9919;</span> No Docker socket</h3><p><span class="mono">/var/run/docker.sock</span> is never mounted &mdash; mounting it is a one-line host root escalation.</p></div>
         <div class="card good"><h3><span class="ic">&#9919;</span> Resource caps</h3><p>CPU (4 cores), memory (8 GB), PID (512) limits stop a runaway agent from hurting the host.</p></div>
         <div class="card good"><h3><span class="ic">&#9919;</span> Project-scoped volumes</h3><p>All state lives in per-project named volumes. Separate projects = separate state. No bleed.</p></div>
-        <div class="card good"><h3><span class="ic">&#9919;</span> Read-only git identity</h3><p><span class="mono">~/.gitconfig</span> is mounted read-only; SSH keys stay on the host (sign-only, opt-in).</p></div>
-        <div class="card good"><h3><span class="ic">&#9919;</span> Extensions are a trust boundary</h3><p>A host-controlled, read-only pinned set &mdash; an in-container agent can&rsquo;t add to it.</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> Read-only git identity</h3><p><span class="mono">~/.gitconfig</span> is mounted read-only. SSH agent forwarding is <b>disabled by default</b>; when opt-in enabled, keys stay on the host (sign-only). Setup is platform-specific &mdash; see <span class="mono">docs/operations.md</span>.</p></div>
+        <div class="card good"><h3><span class="ic">&#9919;</span> Extensions are a trust boundary</h3><p>Pinned via <span class="mono">customizations.vscode.extensions</span> in <span class="mono">devcontainer.json</span> &mdash; host-controlled and read-only inside the container; an in-container agent can&rsquo;t add to it.</p></div>
       </div>
 
       <div class="callout mt-l">
         <b>Validate it, don&rsquo;t trust it.</b> The bundled <span class="mono c-cyan">/security-test</span> skill runs escape / exfiltration / tamper probes from inside the container and reports per test:
         <span style="color:var(--green); font-family:var(--mono)">HELD</span> (blocked = pass) or
         <span style="color:var(--red); font-family:var(--mono)">BYPASS</span> (a finding). Re-run after any config change.
+        For a deeper audit trail &mdash; recording every command the agent executes &mdash; <span class="mono">docs/auditing.md</span> documents two kernel-level approaches (<span class="mono">auditd</span>/<span class="mono">laurel</span> and eBPF/tetragon), stored out-of-band on a volume <span class="mono">development</span> cannot reach or tamper with. Not shipped by default; designed to slot into the same pipeline as the egress log.
       </div>
     </div>
   </section>
@@ -770,7 +771,7 @@
       <div class="grid cols-3 mt-m">
         <div class="card"><h3><span class="ic">&#9655;</span> Claude Code</h3><p>Anthropic&rsquo;s agent, installed and ready.</p></div>
         <div class="card"><h3><span class="ic">&#9655;</span> opencode</h3><p>Open-source agent with a model catalogue.</p></div>
-        <div class="card"><h3><span class="ic">&#9655;</span> Copilot CLI</h3><p>GitHub&rsquo;s <span class="mono">@github/copilot</span>, side by side.</p></div>
+        <div class="card"><h3><span class="ic">&#9655;</span> GitHub Copilot CLI</h3><p>GitHub&rsquo;s <span class="mono">@github/copilot</span>, side by side.</p></div>
       </div>
 
       <ul class="flist mt-l">
@@ -796,11 +797,11 @@
       <div class="grid mt-l" style="gap:14px">
         <div class="switch-row">
           <span class="cmd-chip def">use-anthropic</span>
-          <span><strong>Anthropic subscription (OAuth)</strong> &mdash; the default. No static key on disk; the leaked key is actively unset in each new shell. <span style="color:var(--text-faint)">&#9733; recommended</span></span>
+          <span><strong>Anthropic subscription (OAuth)</strong> &mdash; the default. No static key on disk; the token is scoped and revocable without rotating infrastructure-wide credentials. Any legacy key is actively unset in each new shell. <span style="color:var(--text-faint)">&#9733; recommended</span></span>
         </div>
         <div class="switch-row">
           <span class="cmd-chip">use-foundry</span>
-          <span><strong>Azure AI Foundry (Entra ID)</strong> &mdash; the keyless enterprise alternative, browser-login flow supported in-container.</span>
+          <span><strong>Azure AI Foundry (Entra ID)</strong> &mdash; the keyless enterprise alternative. Browser login (<span class="mono">az login</span>) is supported in-container via localhost port forwarding on <span class="mono">8400&ndash;8999</span>.</span>
         </div>
         <div class="switch-row">
           <span class="cmd-chip">use-anthropic-key</span>
@@ -826,7 +827,7 @@
 
       <div class="grid cols-2-1 mt-m">
         <div class="steps">
-          <div class="step"><div class="num"></div><div><div class="t">Copy <code>.devcontainer/</code> into your repo</div><div class="d">Plus the bundled skills and the <code>CLAUDE.md</code> / <code>AGENTS.md</code> firewall note.</div></div></div>
+          <div class="step"><div class="num"></div><div><div class="t">Copy <code>.devcontainer/</code> into your repo</div><div class="d">Plus the bundled skills and the <code>CLAUDE.md</code> / <code>AGENTS.md</code> firewall note. On Windows, also copy <code>.gitattributes</code> (enforces <code>eol=lf</code> to avoid CRLF issues). Optionally copy <code>tools/setup-host-secrets.sh</code> for host-side API-key persistence.</div></div></div>
           <div class="step"><div class="num"></div><div><div class="t">&ldquo;Reopen in Container&rdquo;</div><div class="d">From VS Code / Cursor, or <code>devcontainer up</code>. First build is a few minutes; later starts, seconds.</div></div></div>
           <div class="step"><div class="num"></div><div><div class="t">Run an agent</div><div class="d">A terminal auto-opens. Type <code>claude</code>, <code>opencode</code>, or <code>copilot</code> &mdash; default auth is Claude on an Anthropic subscription.</div></div></div>
         </div>
