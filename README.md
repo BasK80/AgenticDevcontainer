@@ -82,7 +82,7 @@ Retention defaults to **2 months** and is pruned daily. Override it per project 
 | **[docs/security.md](docs/security.md)** | Full security measures, VS Code extension trust boundary, perimeter validation |
 | **[docs/providers.md](docs/providers.md)** | Choosing a provider, Anthropic key setup, Azure AI Foundry, GitHub Copilot (opencode), Copilot CLI |
 | **[docs/allowlist.md](docs/allowlist.md)** | Managing the allowlist, web dashboard, feature-sets, debugging blocked traffic |
-| **[docs/auditing.md](docs/auditing.md)** | Extending auditing beyond egress (process-exec via auditd/eBPF), the WSL2 single-kernel constraint, filesystem auditing |
+| **[docs/auditing.md](docs/auditing.md)** | Extending auditing beyond egress (process-exec via auditd/eBPF), the shared-kernel constraint and how to choose between approaches (with WSL2-specific notes), filesystem auditing |
 | **[docs/operations.md](docs/operations.md)** | Multi-agent with worktrees, adding tools & skills, permission prompts, caveats, cleanup, minimal footprint |
 | **[docs/file-guide.md](docs/file-guide.md)** | What every file in `.devcontainer/` does |
 | **[docs/comparison.md](docs/comparison.md)** | How this compares to Docker Sandboxes, Microsoft MXC, and why it has no proprietary dependencies |
