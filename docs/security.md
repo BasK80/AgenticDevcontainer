@@ -4,6 +4,8 @@
 
 **Out-of-band management plane (QoL).** A third `control` container hosts the `allow`/`deny` commands, the policy volume, and the web dashboard. It sits on a separate network (`egress` only, never `internal`) and is therefore unreachable from `development`. The hard isolation is the network topology — `development` has no route to `control` regardless of what `control` runs. `control` is a convenience layer: the security would hold even if it were removed and the policy volume were edited directly. An agent inside `development` cannot modify its own allowlist.
 
+**Long-term audit log (egress).** Every proxied request — allowed and denied — is recorded to a SQLite database in the `firewall` container on a dedicated `auditlog` volume that `development` cannot reach or tamper with (queryable via `fw audit` and the dashboard). That covers *network egress*. Auditing what an agent **executes** (processes/commands) or **writes** (files) is not shipped by default but is a documented extension — see [auditing.md](auditing.md) for two kernel-level approaches (`auditd`/`laurel` and eBPF/tetragon), the WSL2 single-kernel constraint that decides between them, and how each reuses this same out-of-band, container-unreachable storage pattern.
+
 **Domain-based filtering.** The allowlist is hostnames, not snapshotted IPs — resilient to CDN/Azure IP rotation. No periodic re-resolution needed.
 
 **Azure browser callback ingress (localhost-only).** To support `az login` browser flow in-container, localhost ports `8400-8999` are published from host to `development`. The firewall only filters egress, so inbound publishes don't bypass it. Limited to `127.0.0.1` on the host.
