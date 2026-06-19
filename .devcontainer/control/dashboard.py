@@ -389,11 +389,12 @@ button{padding:4px 10px;border:1px solid var(--border);border-radius:4px;
        font-size:12px;font-family:inherit;transition:opacity .15s}
 button:hover{opacity:.75}
 .btn-sm{padding:2px 8px;font-size:11px}
+.btn-icon{padding:2px 6px;line-height:1}
 .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
 .btn-success{background:var(--green);border-color:var(--green);color:#fff}
 .btn-danger{background:var(--red);border-color:var(--red);color:#fff}
 /* Inputs */
-input[type=text],input[type=number]{
+input[type=text],input[type=number],input[type=date]{
   padding:4px 8px;border:1px solid var(--border);border-radius:4px;
   background:var(--surface);color:var(--text);font-size:12px;font-family:inherit}
 input:focus{outline:2px solid var(--accent);outline-offset:1px}
@@ -424,6 +425,26 @@ tr:last-child td{border-bottom:none}
 .act-group{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .countdown{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted)}
 .empty-td{color:var(--muted);font-style:italic;text-align:center;padding:16px !important}
+/* Traffic page: Recently Blocked <-> Active Allowlist side by side */
+.traffic-cols{display:grid;grid-template-columns:7fr 3fr;gap:16px;align-items:start}
+@media(max-width:980px){.traffic-cols{grid-template-columns:1fr}}
+/* Resolved (allowed) blocked row */
+tr.resolved td{background:var(--green-dim)}
+tr.resolved .td-domain{opacity:.75}
+.resolved-badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;
+                font-weight:600;color:var(--green)}
+.resolved-badge .countdown{color:var(--green)}
+/* Manual add-domain row in the Allowlist panel */
+.allow-add{display:flex;gap:6px;align-items:center;flex-wrap:wrap;
+           padding:10px 14px;border-bottom:1px solid var(--border)}
+.allow-add select{padding:4px 6px;border:1px solid var(--border);border-radius:4px;
+                  background:var(--surface);color:var(--text);font-size:12px;font-family:inherit}
+/* Collapsible baseline section */
+.baseline-details{border-top:1px solid var(--border)}
+.baseline-details>summary{cursor:pointer;list-style:revert;
+   font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+   color:var(--muted);padding:8px 14px}
+.baseline-details>summary:hover{color:var(--text)}
 /* Audit log */
 .audit-form{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
             padding:10px 14px;border-bottom:1px solid var(--border)}
@@ -482,21 +503,18 @@ tr:last-child td{border-bottom:none}
       Firewall
       <span class="dot" id="dot" title="Live stream connection"></span>
     </div>
-    <div class="nav-group">Monitor</div>
-    <button class="nav-item" data-view="overview">Overview
+    <button class="nav-item" data-view="traffic">Traffic
       <span class="dot nav-dot" id="navDot" title="Live stream connection"></span>
     </button>
     <button class="nav-item" data-view="audit">Audit Log</button>
-    <div class="nav-group">Configure</div>
     <button class="nav-item" data-view="features">Feature Sets</button>
-    <button class="nav-item" data-view="allowlist">Allowlist</button>
   </nav>
 
   <!-- Content: one view visible at a time -->
   <main class="content">
 
-    <!-- ===== Overview: live traffic + recently blocked ===== -->
-    <section class="view" id="view-overview">
+    <!-- ===== Traffic: live stream + Recently Blocked <-> Active Allowlist ===== -->
+    <section class="view" id="view-traffic">
       <div class="card" id="streamCard">
         <div class="card-hdr">
           <h2>Live Traffic</h2>
@@ -507,12 +525,47 @@ tr:last-child td{border-bottom:none}
         <div id="stream-list"></div>
       </div>
 
-      <div class="card">
-        <div class="card-hdr"><h2>Recently Blocked</h2></div>
-        <table>
-          <thead><tr><th>Domain</th><th>Last seen</th><th style="text-align:right">Count</th><th>Allow</th></tr></thead>
-          <tbody id="blocksBody"></tbody>
-        </table>
+      <div class="traffic-cols">
+        <div class="card">
+          <div class="card-hdr"><h2>Recently Blocked</h2>
+            <span class="feat-meta">allow a domain &mdash; it appears in the Allowlist beside it</span>
+          </div>
+          <table>
+            <thead><tr><th>Domain</th><th>Last seen</th><th style="text-align:right">Count</th><th>Action</th></tr></thead>
+            <tbody id="blocksBody"></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr"><h2>Active Allowlist</h2></div>
+          <div class="allow-add">
+            <input type="text" id="addDomain" placeholder="domain to allow&#8230;" style="flex:1;min-width:110px">
+            <select id="addTTL">
+              <option value="">permanent</option>
+              <option value="300">5m</option>
+              <option value="900">15m</option>
+              <option value="3600">1h</option>
+            </select>
+            <button id="addBtn" class="btn-sm btn-success">Add</button>
+          </div>
+          <div class="sub-label">Manual (permanent)</div>
+          <table>
+            <thead><tr><th>Domain</th><th></th></tr></thead>
+            <tbody id="permBody"></tbody>
+          </table>
+          <div class="sub-label" style="margin-top:4px">Temporary</div>
+          <table>
+            <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
+            <tbody id="tempBody"></tbody>
+          </table>
+          <details class="baseline-details">
+            <summary>Baseline (always on)</summary>
+            <table>
+              <thead><tr><th>Domain</th><th></th></tr></thead>
+              <tbody id="baseBody"></tbody>
+            </table>
+          </details>
+        </div>
       </div>
     </section>
 
@@ -523,8 +576,8 @@ tr:last-child td{border-bottom:none}
           <span class="feat-meta">long-term history of all proxied traffic &mdash; query a period, then download as CSV</span>
         </div>
         <div class="audit-form">
-          <label>From <input type="text" id="auFrom" placeholder="YYYY-MM-DD" style="width:150px"></label>
-          <label>To <input type="text" id="auTo" placeholder="YYYY-MM-DD" style="width:150px"></label>
+          <label>From <input type="date" id="auFrom" style="width:150px"></label>
+          <label>To <input type="date" id="auTo" style="width:150px"></label>
           <label>Host <input type="text" id="auHost" placeholder="substring&#8230;" style="width:150px"></label>
           <label>Status
             <select id="auStatus">
@@ -559,28 +612,6 @@ tr:last-child td{border-bottom:none}
       </div>
     </section>
 
-    <!-- ===== Allowlist ===== -->
-    <section class="view" id="view-allowlist">
-      <div class="card">
-        <div class="card-hdr"><h2>Allowlist</h2></div>
-        <div class="sub-label">Manual (permanent)</div>
-        <table>
-          <thead><tr><th>Domain</th><th></th></tr></thead>
-          <tbody id="permBody"></tbody>
-        </table>
-        <div class="sub-label" style="margin-top:4px">Temporary</div>
-        <table>
-          <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
-          <tbody id="tempBody"></tbody>
-        </table>
-        <div class="sub-label" style="margin-top:4px">Baseline (always on)</div>
-        <table>
-          <thead><tr><th>Domain</th><th></th></tr></thead>
-          <tbody id="baseBody"></tbody>
-        </table>
-      </div>
-    </section>
-
   </main>
 </div><!-- .shell -->
 
@@ -590,7 +621,7 @@ tr:last-child td{border-bottom:none}
 // ---- Constants / keys ----
 var LS_FILTER = 'fw.streamFilter';
 var MAX_ENTRIES = 500;
-var VIEWS = ['overview', 'audit', 'features', 'allowlist'];
+var VIEWS = ['traffic', 'audit', 'features'];
 
 // ---- State ----
 var entries = [];
@@ -598,7 +629,7 @@ var paused  = false;
 var hovering = false;
 var filter  = localStorage.getItem(LS_FILTER) || '';
 var sse     = null;
-var currentView = 'overview';
+var currentView = 'traffic';
 
 // ---- Elements ----
 var dot     = document.getElementById('dot');
@@ -619,7 +650,16 @@ var auHost  = document.getElementById('auHost');
 var auStatus = document.getElementById('auStatus');
 var auBody  = document.getElementById('auditBody');
 var auMeta  = document.getElementById('auMeta');
+var addDomain = document.getElementById('addDomain');
+var addTTL  = document.getElementById('addTTL');
+var addBtn  = document.getElementById('addBtn');
 var navItems = Array.prototype.slice.call(document.querySelectorAll('.nav-item'));
+
+// ---- Shared state for the blocked<->allowlist join ----
+// renderBlocks marks a blocked row "resolved" when its exact domain has a
+// manual permanent or temporary allow entry, so we cache both data sets.
+var currentAllowlist = { permanent: [], temporary: [] };
+var lastBlocks = [];
 
 // ---- Restore persisted preferences ----
 sFilt.value = filter;
@@ -789,6 +829,10 @@ function renderFeatures(data) {
 
 // ---- Allowlist rendering ----
 function renderAllowlist(data) {
+  // Cache for the blocked<->allowlist join, then re-render blocks so a row's
+  // resolved state always reflects the latest allowlist.
+  currentAllowlist = { permanent: data.permanent || [], temporary: data.temporary || [] };
+
   if (!data.permanent.length) {
     permB.innerHTML = '<tr><td class="empty-td" colspan="2">No manual entries</td></tr>';
   } else {
@@ -812,25 +856,53 @@ function renderAllowlist(data) {
         + '</tr>';
     }).join('');
   }
+
+  renderBlocks(lastBlocks);
+}
+
+// Look up how a domain is currently allowed (exact match against the manual
+// permanent + temporary allowlist). Returns null, or {kind, expires_at?}.
+function allowState(domain) {
+  if (currentAllowlist.permanent.indexOf(domain) !== -1) {
+    return { kind: 'permanent' };
+  }
+  var t = currentAllowlist.temporary;
+  for (var i = 0; i < t.length; i++) {
+    if (t[i].domain === domain) return { kind: 'temporary', expires_at: t[i].expires_at };
+  }
+  return null;
 }
 
 function renderBlocks(data) {
-  if (!data.length) {
+  lastBlocks = data || [];
+  if (!lastBlocks.length) {
     blkB.innerHTML = '<tr><td class="empty-td" colspan="4">No blocked requests recorded yet</td></tr>';
     return;
   }
-  blkB.innerHTML = data.map(function(b) {
-    return '<tr data-domain="' + esc(b.domain) + '">'
+  blkB.innerHTML = lastBlocks.map(function(b) {
+    var st = allowState(b.domain);
+    var actionCell;
+    if (st) {
+      // Resolved: show a badge (with live countdown for temp) + Remove allow.
+      var badge = st.kind === 'permanent'
+        ? '<span class="resolved-badge">&#10003; Allowed &middot; permanent</span>'
+        : '<span class="resolved-badge">&#10003; Allowed &middot; '
+            + '<span class="countdown" data-exp="' + st.expires_at + '">'
+            + fmtTTL(Math.max(0, st.expires_at - Math.floor(Date.now()/1000))) + '</span></span>';
+      actionCell = '<div class="act-group">' + badge
+        + '<button class="btn-sm btn-danger" data-action="remove-allow">Remove allow</button>'
+        + '</div>';
+    } else {
+      // Collapsed by default to one button; the options expand inline on click.
+      actionCell = '<div class="act-group">'
+        + '<button class="btn-sm btn-success" data-action="expand">Allow &#9662;</button>'
+        + '</div>';
+    }
+    return '<tr data-domain="' + esc(b.domain) + '"' + (st ? ' class="resolved"' : '') + '>'
       + '<td class="td-domain">' + esc(b.domain) + '</td>'
       + '<td class="td-ts">' + esc(b.last_seen) + '</td>'
       + '<td class="td-count">' + b.count + '</td>'
-      + '<td><div class="act-group">'
-      + '<button class="btn-sm btn-success" data-action="allow-perm">Permanent</button>'
-      + '<button class="btn-sm" data-action="allow-ttl" data-ttl="300">5m</button>'
-      + '<button class="btn-sm" data-action="allow-ttl" data-ttl="900">15m</button>'
-      + '<button class="btn-sm" data-action="allow-ttl" data-ttl="3600">1h</button>'
-      + '<button class="btn-sm" data-action="custom">Custom&#8230;</button>'
-      + '</div></td>'
+      + '<td>' + actionCell + '</td>'
       + '</tr>';
   }).join('');
 }
@@ -922,10 +994,38 @@ delegate(tempB, function(btn, tr, action) {
 delegate(blkB, function(btn, tr, action, ttl) {
   var domain = tr.dataset.domain;
   if (!domain) return;
-  if      (action === 'allow-perm') doAllow(domain, null);
-  else if (action === 'allow-ttl')  doAllow(domain, parseInt(ttl, 10));
-  else if (action === 'custom')     showCustom(btn, domain);
+  if      (action === 'allow-perm')   doAllow(domain, null);
+  else if (action === 'allow-ttl')    doAllow(domain, parseInt(ttl, 10));
+  else if (action === 'expand')       expandAllow(btn, domain);
+  else if (action === 'custom')       showCustom(btn, domain);
+  else if (action === 'collapse')     refreshBlocks();
+  else if (action === 'remove-allow') doRemove(domain);
 });
+
+// ---- Manual add (Allowlist panel) ----
+function doManualAdd() {
+  var domain = (addDomain.value || '').trim();
+  if (!domain) { toast('Enter a domain', false); return; }
+  var ttl = addTTL.value ? parseInt(addTTL.value, 10) : null;
+  doAllow(domain, ttl);
+  addDomain.value = '';
+}
+addBtn.addEventListener('click', doManualAdd);
+addDomain.addEventListener('keydown', function(ev) {
+  if (ev.key === 'Enter') doManualAdd();
+});
+
+// Expand the single "Allow" button into the full set of choices, inline.
+function expandAllow(triggerBtn, domain) {
+  var grp = triggerBtn.closest('.act-group');
+  grp.innerHTML =
+    '<button class="btn-sm btn-success" data-action="allow-perm">Permanent</button>'
+    + '<button class="btn-sm" data-action="allow-ttl" data-ttl="300">5m</button>'
+    + '<button class="btn-sm" data-action="allow-ttl" data-ttl="900">15m</button>'
+    + '<button class="btn-sm" data-action="allow-ttl" data-ttl="3600">1h</button>'
+    + '<button class="btn-sm" data-action="custom">Custom&#8230;</button>'
+    + '<button class="btn-sm btn-icon" data-action="collapse" title="Cancel">&#10005;</button>';
+}
 
 function showCustom(triggerBtn, domain) {
   var grp = triggerBtn.closest('.act-group');
@@ -991,11 +1091,13 @@ function refreshBlocks() {
 }
 function refreshAll() { refreshFeatures(); refreshAllowlist(); refreshBlocks(); }
 
+// Traffic view needs both blocked + allowlist (the resolved-row join).
+function refreshTraffic() { refreshAllowlist(); refreshBlocks(); }
+
 // Refresh only the data the active view needs (Audit queries on demand only).
 function refreshActiveView() {
-  if      (currentView === 'overview')  refreshBlocks();
+  if      (currentView === 'traffic')   refreshTraffic();
   else if (currentView === 'features')  refreshFeatures();
-  else if (currentView === 'allowlist') refreshAllowlist();
 }
 
 function tickCountdowns() {
@@ -1003,11 +1105,15 @@ function tickCountdowns() {
   document.querySelectorAll('.countdown[data-exp]').forEach(function(el) {
     el.textContent = fmtTTL(Math.max(0, parseInt(el.dataset.exp, 10) - now));
   });
+  // Re-arm: if any temporary allow has elapsed, resync so it drops from the
+  // allowlist and its blocked row reverts to Allow buttons.
+  var expired = currentAllowlist.temporary.some(function(e){ return e.expires_at <= now; });
+  if (expired) refreshTraffic();
 }
 
 // ---- View router (hash-based) ----
 function showView(name) {
-  if (VIEWS.indexOf(name) === -1) name = 'overview';
+  if (VIEWS.indexOf(name) === -1) name = 'traffic';
   currentView = name;
   VIEWS.forEach(function(v) {
     var el = document.getElementById('view-' + v);
@@ -1020,23 +1126,22 @@ function showView(name) {
     history.replaceState(null, '', '#' + name);
   }
   // Fetch fresh data for the view we just switched to.
-  if      (name === 'overview')  refreshBlocks();
+  if      (name === 'traffic')   refreshTraffic();
   else if (name === 'features')  refreshFeatures();
-  else if (name === 'allowlist') refreshAllowlist();
   else if (name === 'audit')     refreshAudit();
-  // Keep the live stream pinned to the latest when returning to Overview.
-  if (name === 'overview' && !paused) sList.scrollTop = sList.scrollHeight;
+  // Keep the live stream pinned to the latest when returning to Traffic.
+  if (name === 'traffic' && !paused) sList.scrollTop = sList.scrollHeight;
 }
 
 navItems.forEach(function(b) {
   b.addEventListener('click', function(){ showView(b.dataset.view); });
 });
 window.addEventListener('hashchange', function() {
-  showView((location.hash || '').replace('#', '') || 'overview');
+  showView((location.hash || '').replace('#', '') || 'traffic');
 });
 
 // ---- Boot ----
-showView((location.hash || '').replace('#', '') || 'overview');
+showView((location.hash || '').replace('#', '') || 'traffic');
 setInterval(refreshActiveView, 5000);
 setInterval(tickCountdowns, 1000);
 </script>

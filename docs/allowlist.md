@@ -24,12 +24,13 @@ Changes take effect within ~5s (the firewall watcher reloads Squid). Run these o
 
 A single-page dashboard is served by the `control` container at **<http://127.0.0.1:8088>**. It is bound to `127.0.0.1` only — the same localhost-only pattern as the Azure login ports — and is not reachable from inside `development`.
 
-| Section | What it shows |
+The dashboard has three tabs:
+
+| Tab | What it shows |
 |---|---|
-| **Live Traffic** | Real-time stream of every proxied request, colour-coded green (allowed) / red (denied). Collapsible; filter text persists across reloads. |
-| **Feature sets** | One row per toggleable feature-set (`anthropic`, `github`, `npm`, …) with an **Enable**/**Disable** button and the domains it grants. A feature pulled in by another's dependency (e.g. `github` for `copilot`) is badged **via dep** and shows what requires it. |
-| **Allowlist** | **Manual (permanent)** entries you added by hand, **Temporary** TTL entries (live countdown), and the read-only **Baseline (always on)** set. Each manual/temporary row has a **Remove** button. Domains granted by a feature-set live in the Feature sets card, not here. |
-| **Recently Blocked** | Domains with at least one denied request, grouped by host and sorted by recency. One-click **Permanent** / **5m** / **15m** / **1h** and **Custom…** allow buttons per row. |
+| **Traffic** | A live traffic stream (every proxied request, green/red, filterable by host) above a two-panel row: **Recently Blocked** (70 % width) lists denied hosts with a single **Allow ▾** button that expands to Permanent / 5m / 15m / 1h / Custom options inline; **Active Allowlist** (30 % width) lets you add a domain manually and shows **Manual (permanent)**, **Temporary** (live countdown), and a collapsible **Baseline (always on)** section. Allowing a blocked domain immediately marks its row as resolved — no page switch needed. |
+| **Audit Log** | Long-term SQLite history of all proxied traffic. Filter by date range, host, and decision; download any period as CSV. |
+| **Feature Sets** | One row per toggleable feature-set (`anthropic`, `github`, `npm`, …) with an **Enable**/**Disable** button and the domains it grants. A feature pulled in by a dependency is badged **via dep**. |
 
 Every mutation from the dashboard writes to the same shared `policy` volume that the `fw` script modifies directly, so the CLI and the dashboard are always in sync.
 
