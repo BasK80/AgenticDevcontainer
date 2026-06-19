@@ -1,6 +1,6 @@
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      squid socat procps ca-certificates python3 \
+      squid socat procps ca-certificates python3 tzdata \
     && rm -rf /var/lib/apt/lists/*
 COPY squid.conf /etc/squid/squid.conf
 # Feature-set definitions (baseline + one .list per toggleable feature). The

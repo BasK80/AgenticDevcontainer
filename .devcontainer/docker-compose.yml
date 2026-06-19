@@ -87,6 +87,9 @@ services:
     build: ./control
     container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-control
     networks: [egress]                   # unrestricted; NOT on internal
+    environment:
+      # tz-fix: local timezone for control dashboard
+      TZ: ${TZ:-UTC}
     ports:
       - "127.0.0.1:8088:8088"            # dashboard — localhost only
     volumes:

@@ -1,5 +1,5 @@
 FROM debian:trixie-slim
-RUN apt-get update && apt-get install -y --no-install-recommends python3 \
+RUN apt-get update && apt-get install -y --no-install-recommends python3 tzdata \
     && rm -rf /var/lib/apt/lists/*
 COPY allow.sh         /usr/local/bin/allow
 COPY deny.sh          /usr/local/bin/deny
