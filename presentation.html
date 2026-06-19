@@ -564,6 +564,39 @@
   .slide::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
 
   .footnote { font-size: 12.5px; color: var(--text-faint); margin-top: 16px; font-family: var(--mono); }
+
+  /* ---------- Dashboard mock (slide 5) ---------- */
+  .dm-wrap { border-radius: 12px; overflow: hidden; border: 1px solid #27272a; background: #09090b; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; font-size: 13px; line-height: 1.4; box-shadow: 0 20px 48px rgba(0,0,0,.5); }
+  .dm-shell { display: grid; grid-template-columns: 148px 1fr; }
+  .dm-sidebar { background: #18181b; border-right: 1px solid #27272a; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+  .dm-brand { font-size: 13px; font-weight: 600; color: #fafafa; padding: 4px 8px 10px; border-bottom: 1px solid #27272a; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; }
+  .dm-live-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 7px #4ade80; flex-shrink: 0; }
+  .dm-nav-grp { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: #71717a; padding: 8px 8px 2px; }
+  .dm-nav-btn { display: block; width: 100%; text-align: left; padding: 6px 8px; border-radius: 4px; border: none; background: none; color: #a1a1aa; font-size: 12px; font-family: inherit; cursor: default; }
+  .dm-nav-btn.dm-active { background: #60a5fa; color: #fff; font-weight: 600; }
+  .dm-content { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .dm-card { background: #18181b; border: 1px solid #27272a; border-radius: 6px; overflow: hidden; }
+  .dm-card-hdr { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid #27272a; }
+  .dm-card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #a1a1aa; flex: 1; }
+  .dm-hdr-btn { padding: 2px 7px; border: 1px solid #27272a; border-radius: 3px; background: #09090b; color: #a1a1aa; font-size: 10px; cursor: default; font-family: inherit; }
+  .dm-stream { padding: 5px; display: flex; flex-direction: column; gap: 1px; font-family: ui-monospace,monospace; font-size: 11px; }
+  .dm-row { display: flex; gap: 5px; align-items: baseline; padding: 2px 5px; border-radius: 3px; border-left: 2px solid transparent; }
+  .dm-row.dm-ok { border-left-color: #4ade80; }
+  .dm-row.dm-denied { border-left-color: #f87171; background: rgba(248,113,113,.07); }
+  .dm-ic { width: 10px; font-size: 9px; flex-shrink: 0; }
+  .dm-meth { color: #71717a; font-size: 9px; width: 44px; flex-shrink: 0; }
+  .dm-host { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #e4e4e7; font-weight: 500; }
+  .dm-row.dm-denied .dm-host { color: #fca5a5; }
+  .dm-ts { color: #52525b; font-size: 9px; flex-shrink: 0; }
+  .dm-tbl { width: 100%; border-collapse: collapse; }
+  .dm-tbl th { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #71717a; padding: 5px 8px; text-align: left; border-bottom: 1px solid #27272a; background: #09090b; }
+  .dm-tbl td { padding: 5px 8px; border-bottom: 1px solid #1c1c1f; font-size: 11px; font-family: ui-monospace,monospace; color: #a1a1aa; }
+  .dm-tbl tr:last-child td { border-bottom: none; }
+  .dm-td-d { color: #e4e4e7 !important; font-weight: 500; }
+  .dm-td-m { color: #71717a !important; font-size: 10px !important; }
+  .dm-td-c { text-align: right; color: #71717a !important; }
+  .dm-btn-allow { padding: 1px 6px; border: 1px solid #15803d; border-radius: 3px; background: rgba(74,222,128,.08); color: #4ade80; font-size: 9px; cursor: default; margin-right: 3px; font-family: inherit; }
+  .dm-btn-ttl { padding: 1px 5px; border: 1px solid #27272a; border-radius: 3px; background: #09090b; color: #71717a; font-size: 9px; cursor: default; margin-right: 2px; font-family: inherit; }
 </style>
 </head>
 <body>
@@ -738,7 +771,81 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 5 — SECURITY MEASURES ============ -->
+  <!-- ============ SLIDE 5 — DASHBOARD ============ -->
+  <section class="slide" data-title="Dashboard">
+    <div class="slide-inner">
+      <div class="kicker">Control dashboard &middot; http://127.0.0.1:8088 &middot; host-only</div>
+      <h2>Full visibility.<br><span class="accent">Change anything.</span></h2>
+
+      <div class="grid mt-m" style="grid-template-columns:1.7fr 1fr;gap:24px;align-items:start">
+
+        <!-- Dashboard mock -->
+        <div class="dm-wrap">
+          <div class="dm-shell">
+            <nav class="dm-sidebar">
+              <div class="dm-brand">Firewall <span class="dm-live-dot"></span></div>
+              <div class="dm-nav-grp">Monitor</div>
+              <button class="dm-nav-btn dm-active">Overview</button>
+              <button class="dm-nav-btn">Audit Log</button>
+              <div class="dm-nav-grp">Configure</div>
+              <button class="dm-nav-btn">Feature Sets</button>
+              <button class="dm-nav-btn">Allowlist</button>
+            </nav>
+            <div class="dm-content">
+              <div class="dm-card">
+                <div class="dm-card-hdr">
+                  <span class="dm-card-title">Live Traffic</span>
+                  <button class="dm-hdr-btn">Pause</button>
+                  <button class="dm-hdr-btn">Clear</button>
+                </div>
+                <div class="dm-stream">
+                  <div class="dm-row dm-ok"><span class="dm-ic">&#10003;</span><span class="dm-meth">CONNECT</span><span class="dm-host">api.anthropic.com</span><span class="dm-ts">12:35:01</span></div>
+                  <div class="dm-row dm-ok"><span class="dm-ic">&#10003;</span><span class="dm-meth">CONNECT</span><span class="dm-host">github.com</span><span class="dm-ts">12:34:58</span></div>
+                  <div class="dm-row dm-ok"><span class="dm-ic">&#10003;</span><span class="dm-meth">CONNECT</span><span class="dm-host">registry.npmjs.org</span><span class="dm-ts">12:34:55</span></div>
+                  <div class="dm-row dm-denied"><span class="dm-ic">&#10007;</span><span class="dm-meth">CONNECT</span><span class="dm-host">telemetry.vendor.io</span><span class="dm-ts">12:34:52</span></div>
+                  <div class="dm-row dm-ok"><span class="dm-ic">&#10003;</span><span class="dm-meth">CONNECT</span><span class="dm-host">objects.githubusercontent.com</span><span class="dm-ts">12:34:50</span></div>
+                  <div class="dm-row dm-denied"><span class="dm-ic">&#10007;</span><span class="dm-meth">CONNECT</span><span class="dm-host">evil.example.com</span><span class="dm-ts">12:34:47</span></div>
+                  <div class="dm-row dm-ok"><span class="dm-ic">&#10003;</span><span class="dm-meth">CONNECT</span><span class="dm-host">pypi.org</span><span class="dm-ts">12:34:44</span></div>
+                </div>
+              </div>
+              <div class="dm-card">
+                <div class="dm-card-hdr"><span class="dm-card-title">Recently Blocked</span></div>
+                <table class="dm-tbl">
+                  <thead><tr><th>Domain</th><th>Last seen</th><th style="text-align:right">Count</th><th>Allow</th></tr></thead>
+                  <tbody>
+                    <tr>
+                      <td class="dm-td-d">telemetry.vendor.io</td>
+                      <td class="dm-td-m">12:34:52</td>
+                      <td class="dm-td-c">4</td>
+                      <td><button class="dm-btn-allow">Permanent</button><button class="dm-btn-ttl">5m</button><button class="dm-btn-ttl">1h</button></td>
+                    </tr>
+                    <tr>
+                      <td class="dm-td-d">evil.example.com</td>
+                      <td class="dm-td-m">12:34:47</td>
+                      <td class="dm-td-c">1</td>
+                      <td><button class="dm-btn-allow">Permanent</button><button class="dm-btn-ttl">5m</button><button class="dm-btn-ttl">1h</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Feature bullets -->
+        <ul class="flist">
+          <li><span class="b">&#9656;</span><span><strong>Live traffic stream.</strong> Every proxied request scrolls in real time &mdash; green for allowed, red for denied. Filter by host; pause to inspect.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>One-click unblocking.</strong> Blocked domains surface in &ldquo;Recently Blocked&rdquo; with instant Allow buttons &mdash; permanent or time-limited (5m / 15m / 1h / custom TTL).</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Feature-set toggles.</strong> Enable or disable whole domain groups (<span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;) without touching a config file.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Audit log queries.</strong> Search the long-term SQLite log by date range, host, and decision &mdash; then download any period as CSV.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Allowlist management.</strong> View permanent, temporary (with live countdown), and baseline entries side by side. Remove any with one click.</span></li>
+        </ul>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 6 — SECURITY MEASURES (was 5) ============ -->
   <section class="slide" data-title="Security">
     <div class="slide-inner">
       <div class="kicker">Defense in depth</div>
@@ -865,7 +972,7 @@
 </div>
 
 <div class="hint">
-  <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> navigate &nbsp;·&nbsp; <kbd>1</kbd>&ndash;<kbd>8</kbd> jump
+  <kbd>&#8592;</kbd> <kbd>&#8594;</kbd> navigate &nbsp;·&nbsp; <kbd>1</kbd>&ndash;<kbd>9</kbd> jump
 </div>
 
 <script>
