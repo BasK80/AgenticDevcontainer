@@ -546,6 +546,9 @@ tr.resolved .td-domain{opacity:.75}
               </select>
               <button id="addBtn" class="btn-sm btn-success">Add</button>
             </div>
+            <div style="font-size:11px;color:var(--muted);padding:2px 14px 6px">
+              <code>example.com</code> &mdash; exact host &nbsp;|&nbsp; <code>.example.com</code> &mdash; all subdomains of example.com
+            </div>
             <div class="sub-label">Manual (permanent)</div>
             <table>
               <thead><tr><th>Domain</th><th></th></tr></thead>
