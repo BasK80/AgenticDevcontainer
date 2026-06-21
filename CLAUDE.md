@@ -34,3 +34,36 @@ inside the container cannot modify its own allowlist, by design:
   firewall image.
 
 See `README.md` → "Manage the allowlist from the host" for details.
+
+## Read-only mounts
+
+Parts of this container's filesystem are **bind-mounted read-only** from the
+host. Direct edits to these files from inside the container will fail with a
+permission or read-only filesystem error.
+
+When a task requires changes to a read-only file:
+
+1. **Do not** attempt to edit the file in place — it will fail.
+2. Instead, create a shell script under `/workspace/` (e.g.,
+   `/workspace/apply-<description>.sh`) containing the commands needed
+   to apply the changes (using `sed`, `tee`, `cp`, etc.).
+3. Make the script executable (`chmod +x`).
+4. Tell the user to run the script **from the host**, where the filesystem is
+   writable.
+
+This approach works because `/workspace` is shared between the container and
+the host, so scripts placed here are accessible from both sides.
+
+**Known read-only paths** (defined in `.devcontainer/docker-compose.yml`):
+
+- `/workspace/.devcontainer/development/Dockerfile`
+- `/workspace/.devcontainer/development/post-create.sh`
+- `/workspace/.devcontainer/development/post-start.sh`
+- `/workspace/.devcontainer/firewall/` (entire directory)
+- `/workspace/.devcontainer/control/` (entire directory)
+- `/workspace/.devcontainer/docker-compose.yml`
+- `/workspace/.devcontainer/devcontainer.json`
+- `/workspace/.devcontainer/.env`
+- `/workspace/.devcontainer/initialize.sh`
+- `/workspace/.vscode/tasks.json`
+- `/home/devuser/.gitconfig`

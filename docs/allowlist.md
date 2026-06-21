@@ -28,7 +28,7 @@ The dashboard has three tabs:
 
 | Tab | What it shows |
 |---|---|
-| **Traffic** | A live traffic stream (every proxied request, green/red, filterable by host) above a two-panel row: **Recently Blocked** (70 % width) lists denied hosts with a single **Allow ▾** button that expands to Permanent / 5m / 15m / 1h / Custom options inline; **Active Allowlist** (30 % width) lets you add a domain manually and shows **Manual (permanent)**, **Temporary** (live countdown), and a collapsible **Baseline (always on)** section. Allowing a blocked domain immediately marks its row as resolved — no page switch needed. |
+| **Traffic** | A live traffic stream (every proxied request, green/red, filterable by host). Below it, two stacked panels: **Active Allowlist** (top) lets you add a domain manually and shows **Manual (permanent)**, **Temporary** (live countdown), and a collapsible **Baseline (always on)** section; **Recently Blocked** (bottom) lists denied hosts with their last-seen time (ISO 8601, e.g. `2026-06-21 13:02:43`) and hit count, with a single **Allow ▾** button that expands to Permanent / 5m / 15m / 1h / Custom options inline. Allowing a blocked domain immediately marks its row as resolved — no page switch needed. |
 | **Audit Log** | Long-term SQLite history of all proxied traffic. Filter by date range, host, and decision; download any period as CSV. |
 | **Feature Sets** | One row per toggleable feature-set (`anthropic`, `github`, `npm`, …) with an **Enable**/**Disable** button and the domains it grants. A feature pulled in by a dependency is badged **via dep**. |
 

@@ -425,9 +425,16 @@ tr:last-child td{border-bottom:none}
 .act-group{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
 .countdown{font-family:ui-monospace,monospace;font-size:11px;color:var(--muted)}
 .empty-td{color:var(--muted);font-style:italic;text-align:center;padding:16px !important}
-/* Traffic page: Recently Blocked <-> Active Allowlist side by side */
-.traffic-cols{display:grid;grid-template-columns:7fr 3fr;gap:16px;align-items:start}
-@media(max-width:980px){.traffic-cols{grid-template-columns:1fr}}
+/* Traffic page: Active Allowlist above Recently Blocked, stacked */
+.traffic-stack{display:flex;flex-direction:column;gap:16px}
+/* Collapsible Active Allowlist card */
+.allowlist-details{display:block}
+.allowlist-summary{cursor:pointer;list-style:none;user-select:none}
+.allowlist-summary::-webkit-details-marker{display:none}
+.allowlist-summary h2{pointer-events:none}
+.allowlist-summary::after{content:'▾';font-size:12px;color:var(--muted);margin-left:auto;
+  transition:transform .15s}
+.allowlist-details:not([open])>.allowlist-summary::after{content:'▸'}
 /* Resolved (allowed) blocked row */
 tr.resolved td{background:var(--green-dim)}
 tr.resolved .td-domain{opacity:.75}
@@ -525,46 +532,48 @@ tr.resolved .td-domain{opacity:.75}
         <div id="stream-list"></div>
       </div>
 
-      <div class="traffic-cols">
+      <div class="traffic-stack">
+        <div class="card">
+          <details id="allowlistDetails" class="allowlist-details" open>
+            <summary class="card-hdr allowlist-summary"><h2>Active Allowlist</h2></summary>
+            <div class="allow-add">
+              <input type="text" id="addDomain" placeholder="domain to allow&#8230;" style="flex:1;min-width:110px">
+              <select id="addTTL">
+                <option value="">permanent</option>
+                <option value="300">5m</option>
+                <option value="900">15m</option>
+                <option value="3600">1h</option>
+              </select>
+              <button id="addBtn" class="btn-sm btn-success">Add</button>
+            </div>
+            <div class="sub-label">Manual (permanent)</div>
+            <table>
+              <thead><tr><th>Domain</th><th></th></tr></thead>
+              <tbody id="permBody"></tbody>
+            </table>
+            <div class="sub-label" style="margin-top:4px">Temporary</div>
+            <table>
+              <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
+              <tbody id="tempBody"></tbody>
+            </table>
+            <details class="baseline-details">
+              <summary>Baseline (always on)</summary>
+              <table>
+                <thead><tr><th>Domain</th><th></th></tr></thead>
+                <tbody id="baseBody"></tbody>
+              </table>
+            </details>
+          </details>
+        </div>
+
         <div class="card">
           <div class="card-hdr"><h2>Recently Blocked</h2>
-            <span class="feat-meta">allow a domain &mdash; it appears in the Allowlist beside it</span>
+            <span class="feat-meta">allow a domain &mdash; it appears in the Allowlist above</span>
           </div>
           <table>
             <thead><tr><th>Domain</th><th>Last seen</th><th style="text-align:right">Count</th><th>Action</th></tr></thead>
             <tbody id="blocksBody"></tbody>
           </table>
-        </div>
-
-        <div class="card">
-          <div class="card-hdr"><h2>Active Allowlist</h2></div>
-          <div class="allow-add">
-            <input type="text" id="addDomain" placeholder="domain to allow&#8230;" style="flex:1;min-width:110px">
-            <select id="addTTL">
-              <option value="">permanent</option>
-              <option value="300">5m</option>
-              <option value="900">15m</option>
-              <option value="3600">1h</option>
-            </select>
-            <button id="addBtn" class="btn-sm btn-success">Add</button>
-          </div>
-          <div class="sub-label">Manual (permanent)</div>
-          <table>
-            <thead><tr><th>Domain</th><th></th></tr></thead>
-            <tbody id="permBody"></tbody>
-          </table>
-          <div class="sub-label" style="margin-top:4px">Temporary</div>
-          <table>
-            <thead><tr><th>Domain</th><th>Expires in</th><th></th></tr></thead>
-            <tbody id="tempBody"></tbody>
-          </table>
-          <details class="baseline-details">
-            <summary>Baseline (always on)</summary>
-            <table>
-              <thead><tr><th>Domain</th><th></th></tr></thead>
-              <tbody id="baseBody"></tbody>
-            </table>
-          </details>
         </div>
       </div>
     </section>
@@ -704,6 +713,18 @@ function fmtTTL(sec) {
   return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
 }
 
+// Convert "21/Jun/2026:13:02:43 +0200" -> "2026-06-21 13:02:43"
+function fmtSquidTs(raw) {
+  if (!raw) return raw;
+  // Format: DD/Mon/YYYY:HH:MM:SS +HHMM
+  var m = raw.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}:\d{2}:\d{2}) [+-]\d{4}$/);
+  if (!m) return raw;
+  var months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+                Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  var mon = months[m[2]] || m[2];
+  return m[3] + '-' + mon + '-' + m[1] + ' ' + m[4];
+}
+
 // ---- Stream ----
 function matches(e) {
   return !filter || e.host.toLowerCase().includes(filter.toLowerCase());
@@ -716,7 +737,7 @@ function makeRow(e) {
     '<span class="s-icon">' + (e.decision === 'allowed' ? '&#10003;' : '&#10007;') + '</span>'
     + '<span class="s-method">' + esc(e.method) + '</span>'
     + '<span class="s-host">' + esc(e.host) + '</span>'
-    + '<span class="s-ts">' + esc(e.ts) + '</span>';
+    + '<span class="s-ts">' + esc(fmtSquidTs(e.ts)) + '</span>';
   return d;
 }
 
@@ -900,7 +921,7 @@ function renderBlocks(data) {
     }
     return '<tr data-domain="' + esc(b.domain) + '"' + (st ? ' class="resolved"' : '') + '>'
       + '<td class="td-domain">' + esc(b.domain) + '</td>'
-      + '<td class="td-ts">' + esc(b.last_seen) + '</td>'
+      + '<td class="td-ts">' + esc(fmtSquidTs(b.last_seen)) + '</td>'
       + '<td class="td-count">' + b.count + '</td>'
       + '<td>' + actionCell + '</td>'
       + '</tr>';
@@ -929,7 +950,7 @@ function renderAudit(data) {
   auBody.innerHTML = rows.map(function(r) {
     var dec = (r.squid_status && r.squid_status.indexOf('DENIED') >= 0) ? 'denied' : 'allowed';
     return '<tr>'
-      + '<td class="td-ts">' + esc(r.ts_text) + '</td>'
+      + '<td class="td-ts">' + esc(fmtSquidTs(r.ts_text)) + '</td>'
       + '<td><span class="au-dec ' + dec + '">' + dec + '</span></td>'
       + '<td class="td-count" style="text-align:left">' + esc(r.http_code == null ? '-' : r.http_code) + '</td>'
       + '<td>' + esc(r.method || '') + '</td>'
@@ -1054,6 +1075,8 @@ function doAllow(domain, ttl) {
   if (ttl !== null && ttl !== undefined) body.ttl_seconds = ttl;
   post('/api/allow', body).then(function() {
     toast('Allowed ' + domain + (ttl ? ' (' + ttl + 's)' : ' permanently'));
+    var det = document.getElementById('allowlistDetails');
+    if (det) det.open = true;
     refreshAll();
   }).catch(function(e){ toast('Error: ' + e.message, false); });
 }
@@ -1061,6 +1084,8 @@ function doAllow(domain, ttl) {
 function doRemove(domain) {
   post('/api/deny', { domain: domain }).then(function() {
     toast('Removed ' + domain);
+    var det = document.getElementById('allowlistDetails');
+    if (det) det.open = true;
     refreshAll();
   }).catch(function(e){ toast('Error: ' + e.message, false); });
 }

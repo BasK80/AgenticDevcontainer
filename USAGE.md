@@ -173,15 +173,15 @@ The skill `name` in the frontmatter must be lowercase-kebab-case and match its d
 
 > User-level skills also work and **persist across rebuilds**: `~/.claude/skills/` (claude + opencode) or `~/.copilot/skills/` (copilot). Project-level skills in `/workspace/.claude/skills/` are versioned with the repo, which is why the bundled ones below live there.
 
-**Bundled skills.** This repo ships a set of general-purpose productivity skills under `/workspace/.claude/skills/` (from [mattpocock/skills](https://github.com/mattpocock/skills)):
+**Bundled skills.** This repo ships a set of general-purpose productivity skills under `/workspace/.claude/skills/`. Four (`caveman`, `grill-me`, `handoff`, `write-a-skill`) are from [mattpocock/skills](https://github.com/mattpocock/skills); `security-test` is project-specific:
 
 | Skill | What it does |
 |-------|--------------|
 | `caveman` | Ultra-compressed replies — drops filler, keeps technical accuracy (~75% fewer tokens). |
 | `grill-me` | Relentlessly interviews you about a plan/design until every decision is resolved. |
 | `handoff` | Compacts the conversation into a handoff doc so another agent can continue. |
-| `teach` | Teaches a concept across sessions, using the working directory as a stateful workspace. |
 | `write-a-skill` | Scaffolds new skills with proper structure and progressive disclosure. |
+| `security-test` | Runs an adversarial pentest of the dev-container security perimeter and reports HELD / BYPASS per probe. |
 
 **Where to find more skills:**
 

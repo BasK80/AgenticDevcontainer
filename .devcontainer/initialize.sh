@@ -26,9 +26,19 @@ emit_if_set() {
     return 0
 }
 
+# Detect host timezone if TZ is not explicitly set
+_tz="${TZ:-}"
+if [[ -z "$_tz" ]]; then
+    if [[ -f /etc/timezone ]]; then
+        _tz=$(cat /etc/timezone)
+    elif [[ -L /etc/localtime ]]; then
+        _tz=$(readlink -f /etc/localtime | sed 's|.*/zoneinfo/||')
+    fi
+fi
+
 {
     printf 'LOCAL_WORKSPACE_FOLDER_BASENAME=%s\n' "$PROJECT"
-    printf 'TZ=%s\n' "${TZ:-UTC}"
+    printf 'TZ=%s\n' "${_tz:-UTC}"
     printf 'HOST_GITCONFIG=%s%s/.gitconfig\n' "${USERPROFILE:-}" "${HOME}"
     emit_if_set CLAUDE_CODE_OAUTH_TOKEN "${CLAUDE_CODE_OAUTH_TOKEN:-}"
     emit_if_set ANTHROPIC_API_KEY       "${ANTHROPIC_API_KEY:-}"
