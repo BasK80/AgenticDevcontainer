@@ -34,13 +34,14 @@ See **[docs/security.md](docs/security.md)** for the full breakdown and how to v
 
 ## How to use
 
-1. Copy `.devcontainer/` into your project root. Also worth copying:
-   - `.vscode/tasks.json` — auto-opens a terminal on attach.
-   - `.claude/skills/` — the [bundled skills](docs/operations.md#bundled-skills).
-   - `CLAUDE.md` / `AGENTS.md` — the firewall-awareness note for Claude Code / opencode (merge into your own if you already have these files).
-   - `tools/setup-host-secrets.sh` — host-side API-key persistence (see [Store the key on the host](docs/providers.md#store-the-key-on-the-host-with-the-helper-script)).
-   - `.gitattributes` — forces `eol=lf` on `*.sh`; without it a Windows host can save the lifecycle/firewall scripts with CRLF and they fail inside the Linux container. If your repo already has one, just add the `*.sh text eol=lf` line.
-   - Make sure your `.gitignore` keeps `*.env` out of git — `.devcontainer/.env` can hold your API key.
+There are two ways to adopt this setup — both use a GitHub fork so you can pull upstream improvements at any time:
+
+- **Adding to an existing repo** — see **[docs/spin-off-existing-repo.md](docs/spin-off-existing-repo.md)** for a full walkthrough.
+- **Starting a new project from scratch** — see **[docs/spin-off-new-project.md](docs/spin-off-new-project.md)** for a full walkthrough.
+
+In both cases the short version is:
+
+1. Fork this repo on GitHub, add it as a second `upstream` remote in your project, and merge in the infrastructure files. See the guides above for the exact commands.
 2. "Reopen in Container" from VS Code or Cursor, or run `devcontainer up --workspace-folder .`
 3. First build: a few minutes (three images). Subsequent starts: seconds. **Default auth: Claude on an Anthropic subscription** (`use-anthropic`, OAuth) — selected out of the box; run `claude login` when prompted. See [Choosing a provider](docs/providers.md#choosing-a-provider) for why this is the default and how to switch to Azure Foundry or a static API key.
 4. A focused `zsh` terminal opens automatically when the workspace folder opens (VS Code asks to "Allow Automatic Tasks" once) and greets you with a banner of the available agents. Run `claude` (Claude Code), `opencode`, or `copilot` (GitHub Copilot CLI) in it.
@@ -86,4 +87,6 @@ Retention defaults to **2 months** and is pruned daily. Override it per project 
 | **[docs/operations.md](docs/operations.md)** | Multi-agent with worktrees, adding tools & skills, permission prompts, caveats, cleanup, minimal footprint |
 | **[docs/file-guide.md](docs/file-guide.md)** | What every file in `.devcontainer/` does |
 | **[docs/comparison.md](docs/comparison.md)** | How this compares to Docker Sandboxes, Microsoft MXC, and why it has no proprietary dependencies |
+| **[docs/spin-off-existing-repo.md](docs/spin-off-existing-repo.md)** | Adding agent tooling to an existing repo, with upstream sync via a fork |
+| **[docs/spin-off-new-project.md](docs/spin-off-new-project.md)** | Starting a brand-new project with agent tooling from day one, with upstream sync via a fork |
 | **[USAGE.md](USAGE.md)** | Step-by-step first-time setup guide (prerequisites, Windows/WSL, troubleshooting) |
