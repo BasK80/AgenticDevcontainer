@@ -954,8 +954,8 @@
 
         <!-- Bullets -->
         <ul class="flist">
-          <li><span class="b">&#9656;</span><span><strong>Clear state column.</strong> Each feature shows <span style="color:var(--green);font-family:var(--mono);font-size:13px">On</span>, <span style="color:var(--cyan);font-family:var(--mono);font-size:13px">Via copilot</span>, or <span style="color:var(--text-faint);font-family:var(--mono);font-size:13px">Off</span> &mdash; no ambiguous badge to decode.</span></li>
-          <li><span class="b">&#9656;</span><span><strong>Dependencies surfaced, not hidden.</strong> Enabling <span class="mono">copilot</span> activates <span class="mono">github</span>; the table shows that explicitly and locks the toggle with &ldquo;Locked by copilot&rdquo; so you can&rsquo;t accidentally half-disable it.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Clear state column.</strong> Each feature shows <span style="color:var(--green);font-family:var(--mono);font-size:13px">On</span>, <span style="color:var(--cyan);font-family:var(--mono);font-size:13px">Via copilot</span>, or <span style="color:var(--text-faint);font-family:var(--mono);font-size:13px">Off</span> &mdash; at a glance, for every feature.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Dependencies surfaced, not hidden.</strong> Enabling <span class="mono">copilot</span> activates <span class="mono">github</span>; the table shows that explicitly and locks the <span class="mono">github</span> toggle with &ldquo;Locked by copilot&rdquo; so the relationship is always visible.</span></li>
           <li><span class="b">&#9656;</span><span><strong>User-defined features.</strong> Create a named set for any domain group your project needs &mdash; stored on the <span class="mono">policy</span> volume, persists across restarts. Full Create / Edit / Delete cycle from the UI or <span class="mono">fw feature create/edit/delete</span>.</span></li>
           <li><span class="b">&#9656;</span><span><strong>Safe cascade on delete.</strong> Deleting a feature that others depend on shows a confirmation naming the affected features and automatically strips the dangling dependency reference.</span></li>
         </ul>
@@ -1023,7 +1023,7 @@
       <div class="grid mt-l" style="gap:14px">
         <div class="switch-row">
           <span class="cmd-chip def">use-anthropic</span>
-          <span><strong>Anthropic subscription (OAuth)</strong> &mdash; the default. No static key on disk; the token is scoped and revocable without rotating infrastructure-wide credentials. Any legacy key is actively unset in each new shell. <span style="color:var(--text-faint)">&#9733; recommended</span></span>
+          <span><strong>Anthropic subscription (OAuth)</strong> &mdash; the default. No static key on disk; the token is scoped and revocable without rotating infrastructure-wide credentials. <span style="color:var(--text-faint)">&#9733; recommended</span></span>
         </div>
         <div class="switch-row">
           <span class="cmd-chip">use-foundry</span>
@@ -1031,7 +1031,7 @@
         </div>
         <div class="switch-row">
           <span class="cmd-chip">use-anthropic-key</span>
-          <span><strong>Anthropic API key / gateway</strong> &mdash; the static-credential fallback, selected explicitly when you need it.</span>
+          <span><strong>Anthropic API key / gateway</strong> &mdash; use a static API key or point at a custom gateway endpoint.</span>
         </div>
         <div class="switch-row">
           <span class="cmd-chip">copilot</span>
@@ -1040,7 +1040,7 @@
       </div>
 
       <div class="callout mt-l">
-        <b>OAuth / Entra first, static keys deprioritised.</b> Identity-based auth means there&rsquo;s no long-lived secret sitting in the workspace for an agent to read &mdash; and the firewall narrows the exfil surface even when a key is in use.
+        <b>Identity-based auth where possible.</b> Identity-based auth means there&rsquo;s no long-lived secret sitting in the workspace for an agent to read &mdash; and the firewall narrows the exfil surface even when a key is in use.
       </div>
     </div>
   </section>
