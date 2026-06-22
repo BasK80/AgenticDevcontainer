@@ -24,8 +24,10 @@ elif [ ! -e "$CLAUDE_JSON" ]; then
         echo "[setup] Restored ~/.claude.json symlink after rebuild"
     else
         # No store yet — check for backups left by the old layout.
-        LATEST_BACKUP=$(ls -t "$HOME/.claude/backups/.claude.json.backup."* 2>/dev/null \
-                        | awk 'NR==1')
+        LATEST_BACKUP=""
+        if compgen -G "$HOME/.claude/backups/.claude.json.backup.*" >/dev/null 2>&1; then
+            LATEST_BACKUP=$(ls -t "$HOME/.claude/backups/.claude.json.backup."* 2>/dev/null | awk 'NR==1')
+        fi
         if [ -n "$LATEST_BACKUP" ] && [ "$(wc -c < "$LATEST_BACKUP")" -gt 200 ]; then
             cp "$LATEST_BACKUP" "$CLAUDE_JSON_STORE"
             ln -sf "$CLAUDE_JSON_STORE" "$CLAUDE_JSON"
@@ -67,5 +69,15 @@ else
     use-anthropic >/dev/null
     echo "[setup] Defaulted provider: Claude (Anthropic subscription, OAuth)"
 fi
+
+# ── Install ping wrapper ──────────────────────────────────────────────────
+# ping bypasses the HTTP proxy and always fails in this container (no default
+# gateway on the internal network). Replace it with a script that explains
+# the situation and suggests curl as an alternative. ~/.local/bin is first on
+# PATH (set in ~/.zshrc) so it shadows /usr/bin/ping without root access.
+mkdir -p "$HOME/.local/bin"
+cp /workspace/.devcontainer/development/ping-wrapper.sh "$HOME/.local/bin/ping"
+chmod +x "$HOME/.local/bin/ping"
+echo "[setup] Installed ping wrapper in ~/.local/bin/ping"
 
 echo "[post-start] done."
