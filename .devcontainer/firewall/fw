@@ -5,7 +5,7 @@
 #   docker exec      "$FW" fw deny  <domain>
 #   docker exec      "$FW" fw list
 #   docker exec      "$FW" fw blocks
-#   docker exec      "$FW" fw feature list|on <name>|off <name>
+#   docker exec      "$FW" fw feature list|show|on|off|create|edit|delete <name>
 #   docker exec      "$FW" fw audit [--from D] [--to D] [--host P] [--status denied|allowed] [--limit N]
 #   docker exec -it  "$FW" fw log
 set -euo pipefail
@@ -13,17 +13,62 @@ set -euo pipefail
 PERM=/policy/allowlist.acl.perm
 TTL=/policy/ttl.tsv
 DEFS=/policy/features.defs
+USER_DEFS=/policy/features.d
 STATE=/policy/features.state
 
+# Ensure user defs directory exists
+mkdir -p "$USER_DEFS"
+
+# --- validation helpers -----------------------------------------------------
+_NAME_RE='^[A-Za-z0-9_-]{1,40}$'
+_DOMAIN_RE='^\\.?[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?(\\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?)+$'
+
+_valid_name() {
+  [[ "$1" =~ $(_name_pattern) ]]
+}
+_name_pattern() { echo "$_NAME_RE"; }
+
+_validate_name() {
+  local name="$1"
+  if ! [[ "$name" =~ ^[A-Za-z0-9_-]{1,40}$ ]]; then
+    echo "Invalid feature name. Use 1-40 characters: letters, digits, hyphens, underscores." >&2
+    return 1
+  fi
+  if [ "$name" = "_baseline" ]; then
+    echo "The name '_baseline' is reserved." >&2
+    return 1
+  fi
+  return 0
+}
+
+_validate_domain() {
+  local d="$1"
+  # Must have at least one dot, valid hostname labels, optional leading dot
+  if ! echo "$d" | grep -qE '^\\.?([A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?\\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,62}[A-Za-z0-9])?$'; then
+    return 1
+  fi
+  return 0
+}
+
 # --- feature helpers --------------------------------------------------------
+_feat_file() {
+  if [ -f "$DEFS/$1.list" ]; then
+    echo "$DEFS/$1.list"
+  elif [ -f "$USER_DEFS/$1.list" ]; then
+    echo "$USER_DEFS/$1.list"
+  fi
+}
+
 _feat_deps() {  # space-separated deps from a feature's "# depends:" header
-  local f="$DEFS/$1.list"
-  [ -f "$f" ] && sed -n 's/^#[[:space:]]*depends:[[:space:]]*//p' "$f" 2>/dev/null | tr ',' ' '
+  local f
+  f="$(_feat_file "$1")"
+  [ -n "$f" ] && sed -n 's/^#[[:space:]]*depends:[[:space:]]*//p' "$f" 2>/dev/null | tr ',' ' '
   return 0
 }
 _feat_domains() {
-  local f="$DEFS/$1.list"
-  [ -f "$f" ] && grep -vE '^[[:space:]]*(#|$)' "$f" 2>/dev/null
+  local f
+  f="$(_feat_file "$1")"
+  [ -n "$f" ] && grep -vE '^[[:space:]]*(#|$)' "$f" 2>/dev/null
   return 0
 }
 _enabled() {
@@ -35,13 +80,14 @@ _state_of() {  # echo on|off for a feature
   grep -E "^$1=" "$STATE" 2>/dev/null | tail -n1 | cut -d= -f2 || true
 }
 _closure() {   # transitive closure of enabled features (one per line)
-  local -A seen=(); local queue next f
+  local -A seen=(); local queue next f ff
   queue="$(_enabled)"
   while [ -n "${queue// }" ]; do
     next=""
     for f in $queue; do
       [ -n "${seen[$f]:-}" ] && continue
-      [ -f "$DEFS/$f.list" ] || continue
+      ff="$(_feat_file "$f")"
+      [ -z "$ff" ] && continue
       seen[$f]=1; echo "$f"
       next="$next $(_feat_deps "$f")"
     done
@@ -57,6 +103,53 @@ _set_feature() {  # name on|off
     { [ -f "$STATE" ] && cat "$STATE"; echo "$name=$val"; } > "$tmp"
   fi
   mv -f "$tmp" "$STATE"
+}
+_remove_feature_state() {  # name
+  local name="$1" tmp
+  if [ -f "$STATE" ] && grep -qE "^$name=" "$STATE"; then
+    tmp="$(mktemp)"
+    grep -vE "^$name=" "$STATE" > "$tmp" || true
+    mv -f "$tmp" "$STATE"
+  fi
+}
+
+_is_builtin() {
+  [ -f "$DEFS/$1.list" ]
+}
+_is_user() {
+  [ -f "$USER_DEFS/$1.list" ]
+}
+
+# List all known feature names (built-in + user, excluding _baseline)
+_all_features() {
+  {
+    for f in "$DEFS"/*.list; do
+      [ -e "$f" ] || continue
+      basename "$f" .list
+    done
+    for f in "$USER_DEFS"/*.list; do
+      [ -e "$f" ] || continue
+      basename "$f" .list
+    done
+  } | grep -v '^_baseline$' | sort -u
+}
+
+# --- write a .list file -----------------------------------------------------
+_write_list_file() {
+  local filepath="$1" description="$2" depends="$3"
+  shift 3
+  # remaining args are domains
+  {
+    if [ -n "$description" ]; then
+      echo "# $description"
+    fi
+    if [ -n "$depends" ]; then
+      echo "# depends: $depends"
+    fi
+    for d in "$@"; do
+      echo "$d"
+    done
+  } > "$filepath"
 }
 
 case "${1:-}" in
@@ -108,19 +201,20 @@ case "${1:-}" in
   log)     exec tail -f /var/log/squid/access.log ;;
   audit)   shift; exec /usr/local/bin/auditlog.py query "$@" ;;
   feature)
-    sub="${2:-list}"
+    sub="${2:-}"
     case "$sub" in
       list)
         # Effective set (incl. dependency pulls) for the * marker.
         eff=" $(_closure | tr '\n' ' ') "
-        for f in "$DEFS"/*.list; do
-          [ -e "$f" ] || continue
-          name="$(basename "$f" .list)"
-          [ "$name" = "_baseline" ] && continue
+        for f in $(_all_features); do
+          name="$f"
           st="$(_state_of "$name")"; st="${st:-off}"
           mark=" "; case "$eff" in *" $name "*) [ "$st" = off ] && mark="*";; esac
           deps="$(_feat_deps "$name" | tr -s ' ')"; deps="${deps# }"; deps="${deps% }"
-          printf '%-12s %-3s' "$name" "$st"
+          # Tag: [built-in] or [user]
+          tag="[built-in]"
+          _is_user "$name" && tag="[user]"
+          printf '%-12s %-3s %-10s' "$name" "$st" "$tag"
           [ "$mark" = "*" ] && printf ' (active via dependency)'
           [ -n "$deps" ]    && printf ' [depends: %s]' "$deps"
           printf '\n'
@@ -129,25 +223,214 @@ case "${1:-}" in
         echo
         echo "* = off in state but active because an enabled feature depends on it"
         ;;
+      show)
+        name="${3:?usage: fw feature show <name>}"
+        _validate_name "$name" || exit 1
+        ff="$(_feat_file "$name")"
+        if [ -z "$ff" ]; then
+          echo "No feature named '$name' found." >&2
+          exit 1
+        fi
+        if _is_builtin "$name"; then
+          echo "# Type: built-in"
+        else
+          echo "# Type: user-created"
+        fi
+        echo "# File: $ff"
+        echo "---"
+        cat "$ff"
+        ;;
       on|off)
         name="${3:?usage: fw feature on|off <name>}"
-        if [ ! -f "$DEFS/$name.list" ]; then
+        ff="$(_feat_file "$name")"
+        if [ -z "$ff" ]; then
           echo "unknown feature: $name" >&2
-          echo "known: $(cd "$DEFS" && ls *.list 2>/dev/null | sed 's/\.list$//' | grep -v '^_baseline' | tr '\n' ' ')" >&2
+          echo "known: $(_all_features | tr '\n' ' ')" >&2
           exit 1
         fi
         _set_feature "$name" "$sub"
         echo "feature $name=$sub — effective within ~5s"
         ;;
+      create)
+        shift 2  # consume 'feature' and 'create'
+        name="${1:?usage: fw feature create <name> [-d \"desc\"] [--depends a,b] [--domain x.com]...}"
+        shift
+        _validate_name "$name" || exit 1
+        if _is_builtin "$name"; then
+          echo "Name '$name' is already used by a built-in feature." >&2
+          exit 1
+        fi
+        if _is_user "$name"; then
+          echo "A user feature named '$name' already exists." >&2
+          exit 1
+        fi
+
+        # Parse options
+        description=""
+        depends=""
+        domains=()
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            -d|--description)
+              description="${2:-}"; shift 2 ;;
+            --depends)
+              depends="${2:-}"; shift 2 ;;
+            --domain)
+              domains+=("${2:-}"); shift 2 ;;
+            *)
+              echo "Unknown option: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        # If no --domain flags, read from stdin
+        if [ ${#domains[@]} -eq 0 ]; then
+          while IFS= read -r line; do
+            line="${line%%#*}"  # strip comments
+            line="$(echo "$line" | xargs)"  # trim whitespace
+            [ -n "$line" ] && domains+=("$line")
+          done
+        fi
+
+        if [ ${#domains[@]} -eq 0 ]; then
+          echo "At least one domain is required." >&2
+          exit 1
+        fi
+
+        # Validate domains
+        for i in "${!domains[@]}"; do
+          if ! _validate_domain "${domains[$i]}"; then
+            echo "Invalid domain on line $((i+1)): '${domains[$i]}'" >&2
+            exit 1
+          fi
+        done
+
+        # Validate dependencies
+        if [ -n "$depends" ]; then
+          IFS=',' read -ra dep_arr <<< "$depends"
+          for dep in "${dep_arr[@]}"; do
+            dep="$(echo "$dep" | xargs)"
+            [ -z "$dep" ] && continue
+            dep_file="$(_feat_file "$dep")"
+            if [ -z "$dep_file" ]; then
+              echo "Unknown dependency: '$dep'. Available features: $(_all_features | tr '\n' ' ')" >&2
+              exit 1
+            fi
+          done
+        fi
+
+        # Write the file
+        _write_list_file "$USER_DEFS/$name.list" "$description" "$depends" "${domains[@]}"
+        _set_feature "$name" "on"
+        echo "Feature '$name' created and enabled."
+        ;;
+      edit)
+        shift 2  # consume 'feature' and 'edit'
+        name="${1:?usage: fw feature edit <name> [-d \"desc\"] [--depends a,b] [--domain x.com]...}"
+        shift
+        _validate_name "$name" || exit 1
+        if _is_builtin "$name"; then
+          echo "'$name' is a built-in feature and cannot be modified. Edit the source file on the host." >&2
+          exit 1
+        fi
+        if ! _is_user "$name"; then
+          echo "No user feature named '$name' found." >&2
+          exit 1
+        fi
+
+        # Parse options
+        description=""
+        depends=""
+        domains=()
+        while [ $# -gt 0 ]; do
+          case "$1" in
+            -d|--description)
+              description="${2:-}"; shift 2 ;;
+            --depends)
+              depends="${2:-}"; shift 2 ;;
+            --domain)
+              domains+=("${2:-}"); shift 2 ;;
+            *)
+              echo "Unknown option: $1" >&2; exit 1 ;;
+          esac
+        done
+
+        # If no --domain flags, read from stdin
+        if [ ${#domains[@]} -eq 0 ]; then
+          while IFS= read -r line; do
+            line="${line%%#*}"  # strip comments
+            line="$(echo "$line" | xargs)"  # trim whitespace
+            [ -n "$line" ] && domains+=("$line")
+          done
+        fi
+
+        if [ ${#domains[@]} -eq 0 ]; then
+          echo "At least one domain is required." >&2
+          exit 1
+        fi
+
+        # Validate domains
+        for i in "${!domains[@]}"; do
+          if ! _validate_domain "${domains[$i]}"; then
+            echo "Invalid domain on line $((i+1)): '${domains[$i]}'" >&2
+            exit 1
+          fi
+        done
+
+        # Validate dependencies
+        if [ -n "$depends" ]; then
+          IFS=',' read -ra dep_arr <<< "$depends"
+          for dep in "${dep_arr[@]}"; do
+            dep="$(echo "$dep" | xargs)"
+            [ -z "$dep" ] && continue
+            dep_file="$(_feat_file "$dep")"
+            if [ -z "$dep_file" ]; then
+              echo "Unknown dependency: '$dep'. Available features: $(_all_features | tr '\n' ' ')" >&2
+              exit 1
+            fi
+          done
+        fi
+
+        # Overwrite the file
+        _write_list_file "$USER_DEFS/$name.list" "$description" "$depends" "${domains[@]}"
+        echo "Feature '$name' updated."
+        ;;
+      delete)
+        name="${3:?usage: fw feature delete <name>}"
+        _validate_name "$name" || exit 1
+        if _is_builtin "$name"; then
+          echo "'$name' is a built-in feature and cannot be deleted." >&2
+          exit 1
+        fi
+        if ! _is_user "$name"; then
+          echo "No user feature named '$name' found." >&2
+          exit 1
+        fi
+        rm -f "$USER_DEFS/$name.list"
+        _remove_feature_state "$name"
+        echo "Feature '$name' deleted."
+        ;;
+      ""|help|--help|-h)
+        echo "usage: fw feature list"
+        echo "       fw feature show <name>"
+        echo "       fw feature on|off <name>"
+        echo "       fw feature create <name> [-d \"desc\"] [--depends a,b] [--domain x]..."
+        echo "       fw feature edit <name> [-d \"desc\"] [--depends a,b] [--domain x]..."
+        echo "       fw feature delete <name>"
+        echo ""
+        echo "Manage firewall feature sets. Built-in features can only be toggled on/off."
+        echo "User-created features (stored in /policy/features.d/) can be created, edited,"
+        echo "and deleted."
+        ;;
       *)
-        echo "usage: fw feature list | on <name> | off <name>" >&2
+        echo "unknown subcommand: $sub" >&2
+        echo "usage: fw feature list | show <name> | on <name> | off <name> | create | edit | delete" >&2
         exit 1
         ;;
     esac
     ;;
   *)
     echo "usage: fw allow <domain> [ttl_seconds] | fw deny <domain> | fw list | fw blocks | fw log"
-    echo "       fw feature list | on <name> | off <name>"
+    echo "       fw feature list | show <name> | on|off <name> | create | edit | delete <name>"
     echo "       fw audit [--from DATE] [--to DATE] [--host PATTERN] [--status denied|allowed] [--limit N]"
     echo ""
     echo "run from the host as:"

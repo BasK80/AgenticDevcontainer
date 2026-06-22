@@ -16,6 +16,12 @@ docker exec -it  "$FW" fw log                              # follow the access l
 docker exec      "$FW" fw feature list                     # feature-sets + their domains + on/off
 docker exec      "$FW" fw feature on  azure                # enable a feature-set
 docker exec      "$FW" fw feature off npm                  # disable a feature-set
+docker exec      "$FW" fw feature show npm                 # print the raw .list file for a feature
+docker exec      "$FW" fw feature create mycdn \
+  -d "My CDN" --domain cdn.example.com                     # create a user-defined feature (auto-enabled)
+docker exec      "$FW" fw feature edit mycdn \
+  --domain cdn.example.com --domain assets.example.com     # replace all domains for a user feature
+docker exec      "$FW" fw feature delete mycdn             # delete a user-defined feature
 ```
 
 Changes take effect within ~5s (the firewall watcher reloads Squid). Run these on the **host**, not inside the dev container — `development` is deliberately unable to reach the management plane.
@@ -30,7 +36,7 @@ The dashboard has three tabs:
 |---|---|
 | **Traffic** | A live traffic stream (every proxied request, green/red, filterable by host). Below it, two stacked panels: **Active Allowlist** (top) lets you add a domain manually and shows **Manual (permanent)**, **Temporary** (live countdown), and a collapsible **Baseline (always on)** section; **Recently Blocked** (bottom) lists denied hosts with their last-seen time (ISO 8601, e.g. `2026-06-21 13:02:43`) and hit count, with a single **Allow ▾** button that expands to Permanent / 5m / 15m / 1h / Custom options inline. Allowing a blocked domain immediately marks its row as resolved — no page switch needed. |
 | **Audit Log** | Long-term SQLite history of all proxied traffic. Filter by date range, host, and decision; download any period as CSV. |
-| **Feature Sets** | One row per toggleable feature-set (`anthropic`, `github`, `npm`, …) with an **Enable**/**Disable** button and the domains it grants. A feature pulled in by a dependency is badged **via dep**. |
+| **Feature Sets** | One row per toggleable feature-set (`anthropic`, `github`, `npm`, …). The **State** column shows **On** (green), **Via \<name\>** (blue, pulled in as a dependency), or **Off** (gray). The **Actions** column has **Enable**/**Disable** for directly-controllable features; dependency-pulled features show **Locked by \<name\>** instead of a toggle. User-created features also have **Edit** and **Delete** buttons. A **Create Feature** button above the table opens a form to define a new feature-set (name, description, domains, dependencies) stored persistently in `/policy/features.d/`. |
 
 Every mutation from the dashboard writes to the same shared `policy` volume that the `fw` script modifies directly, so the CLI and the dashboard are always in sync.
 
@@ -53,11 +59,41 @@ Microsoft apt, a generic JS CDN); everything project-specific is a feature.
 | `azure` | Azure AI Foundry (Entra ID, ARM, Foundry portal, data plane) | off |
 | `infosupport` | Info Support LLM gateway (test) | off |
 
-Definitions live in `.devcontainer/firewall/features/*.list` (one file per
-feature, domain-per-line, with an optional `# depends:` header). They are baked
-read-only into the firewall image — adding or editing a feature is a maintainer
-action (edit + rebuild the firewall), so a process inside the dev container
-cannot grant itself new domains.
+Definitions live in two places:
+
+- **Built-in features** — `.devcontainer/firewall/features/*.list`, baked read-only into the firewall image. Adding or editing a built-in feature is a maintainer action (edit + rebuild), so a process inside the dev container cannot grant itself new domains.
+- **User-created features** — `/policy/features.d/*.list`, on the shared `policy` Docker volume. Created, edited, and deleted at runtime via `fw feature create/edit/delete` or the web UI. Persist across container restarts. Built-in features take precedence; a user feature cannot reuse a built-in name.
+
+### User-defined features
+
+You can define your own feature-sets for any group of domains your project regularly needs — for example, a private registry, a staging API, or a CDN:
+
+```bash
+# Create a user feature (automatically enabled, stored in /policy/features.d/)
+docker exec "$FW" fw feature create myregistry \
+  -d "Private npm registry" \
+  --domain registry.example.com
+
+# Create with a dependency (this feature's domains + github's domains are allowed together)
+docker exec "$FW" fw feature create myapp \
+  -d "My application services" \
+  --depends github \
+  --domain api.myapp.com --domain cdn.myapp.com
+
+# Edit (full replacement — supply all domains you want)
+docker exec "$FW" fw feature edit myregistry \
+  -d "Private npm registry" \
+  --domain registry.example.com --domain registry2.example.com
+
+# Pipe domains from stdin instead of --domain flags
+printf 'registry.example.com\nregistry2.example.com\n' | \
+  docker exec -i "$FW" fw feature create myregistry -d "Private npm registry"
+
+# Delete
+docker exec "$FW" fw feature delete myregistry
+```
+
+The same operations are available in the **Feature Sets** tab of the web dashboard at <http://127.0.0.1:8088>.
 
 **Toggle a feature** (effective within ~5s, no rebuild):
 

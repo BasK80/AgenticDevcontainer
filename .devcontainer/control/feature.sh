@@ -5,12 +5,13 @@
 # firewall container; both write the same shared /policy state.
 set -euo pipefail
 DEFS=/policy/features.defs
+USER_DEFS=/policy/features.d
 STATE=/policy/features.state
 
 name="${1:?usage: feature <name> on|off}"
 val="${2:?usage: feature <name> on|off}"
 case "$val" in on|off) ;; *) echo "state must be 'on' or 'off'" >&2; exit 1 ;; esac
-if [ ! -f "$DEFS/$name.list" ]; then
+if [ ! -f "$DEFS/$name.list" ] && [ ! -f "$USER_DEFS/$name.list" ]; then
   echo "unknown feature: $name" >&2
   exit 1
 fi

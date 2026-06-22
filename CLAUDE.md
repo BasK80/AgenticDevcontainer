@@ -29,7 +29,13 @@ inside the container cannot modify its own allowlist, by design:
 - On the host: `docker exec <firewall-container> fw allow <domain> [ttl-seconds]`
 - Whole feature-sets (npm, azure, copilot, …) toggle on/off via the control UI
   or `docker exec <firewall-container> fw feature on|off <name>`.
-- Permanent default: add the domain to the relevant feature list under
+- **User-defined feature-sets** (groups of domains for a specific tool or service)
+  can be created, edited, and deleted at runtime — they are stored in
+  `/policy/features.d/` on the `policy` volume and persist across restarts:
+  - `docker exec <firewall-container> fw feature create <name> --domain x.com`
+  - `docker exec <firewall-container> fw feature delete <name>`
+  - Same operations are available in the web UI's **Feature Sets** tab.
+- Permanent built-in default: add the domain to the relevant feature list under
   `.devcontainer/firewall/features/` (or create a new one) and rebuild the
   firewall image.
 

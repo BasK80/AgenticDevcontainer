@@ -56,12 +56,15 @@ All allowlist management runs on the **host**, not inside the dev container:
 FW="claude-$(basename "$PWD")-firewall"
 docker exec "$FW" fw allow pypi.org          # permanent allow
 docker exec "$FW" fw deny  pypi.org          # remove
-docker exec "$FW" fw feature on azure        # enable a feature-set
+docker exec "$FW" fw feature on azure        # enable a built-in feature-set
+docker exec "$FW" fw feature create mycdn \
+  --domain cdn.example.com                   # create a user-defined feature-set
+docker exec "$FW" fw feature delete mycdn    # delete a user-defined feature-set
 docker exec "$FW" fw blocks                  # recent blocked requests
 docker exec "$FW" fw audit --status denied   # query the long-term audit log
 ```
 
-A web dashboard is available at **<http://127.0.0.1:8088>**. See **[docs/allowlist.md](docs/allowlist.md)** for full reference including feature-sets, TTL allows, debugging, and the block feed.
+A web dashboard is available at **<http://127.0.0.1:8088>** — toggle features, allow/deny domains, browse the audit log, and create or edit user-defined feature-sets from the browser. See **[docs/allowlist.md](docs/allowlist.md)** for full reference including feature-sets, TTL allows, debugging, and the block feed.
 
 ### Audit log
 

@@ -6,26 +6,41 @@
 # Layers, in order: baseline -> enabled features (transitively dep-closed)
 # -> manual permanent (allowlist.acl.perm) -> ttl (ttl.tsv domain column).
 #
+# Scans both built-in definitions ($DEFS) and user-created definitions
+# ($USER_DEFS) for feature .list files.
+#
 # Reads only; never mutates policy. Paths overridable via env for testing.
 set -uo pipefail
 
 POLICY="${POLICY_DIR:-/policy}"
 DEFS="${FEATURE_DEFS:-$POLICY/features.defs}"
+USER_DEFS="${USER_FEATURE_DEFS:-$POLICY/features.d}"
 STATE="${FEATURE_STATE:-$POLICY/features.state}"
 PERM="${PERM_FILE:-$POLICY/allowlist.acl.perm}"
 TTL="${TTL_FILE:-$POLICY/ttl.tsv}"
 
+# Resolve a feature .list file path (checks built-in first, then user).
+_feat_file() {
+  if [ -f "$DEFS/$1.list" ]; then
+    echo "$DEFS/$1.list"
+  elif [ -f "$USER_DEFS/$1.list" ]; then
+    echo "$USER_DEFS/$1.list"
+  fi
+}
+
 # Domains of a feature (comments + blank lines stripped).
 _feat_domains() {
-  local f="$DEFS/$1.list"
-  [ -f "$f" ] && grep -vE '^[[:space:]]*(#|$)' "$f" 2>/dev/null
+  local f
+  f="$(_feat_file "$1")"
+  [ -n "$f" ] && grep -vE '^[[:space:]]*(#|$)' "$f" 2>/dev/null
   return 0
 }
 
 # Space-separated dependencies declared in a feature's "# depends:" header.
 _feat_deps() {
-  local f="$DEFS/$1.list"
-  [ -f "$f" ] && sed -n 's/^#[[:space:]]*depends:[[:space:]]*//p' "$f" 2>/dev/null | tr ',' ' '
+  local f
+  f="$(_feat_file "$1")"
+  [ -n "$f" ] && sed -n 's/^#[[:space:]]*depends:[[:space:]]*//p' "$f" 2>/dev/null | tr ',' ' '
   return 0
 }
 
@@ -44,8 +59,9 @@ while [ -n "${_queue// }" ]; do
   _next=""
   for _f in $_queue; do
     [ -n "${_seen[$_f]:-}" ] && continue
-    # Only real features (a definition file must exist).
-    [ -f "$DEFS/$_f.list" ] || continue
+    # Only real features (a definition file must exist in either dir).
+    _ff="$(_feat_file "$_f")"
+    [ -z "$_ff" ] && continue
     _seen[$_f]=1
     _closure="$_closure $_f"
     _next="$_next $(_feat_deps "$_f")"

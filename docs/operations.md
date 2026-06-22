@@ -176,13 +176,24 @@ docker exec      "$FW" fw deny  example.com        # remove an allow (re-block)
 docker exec      "$FW" fw list                     # current compiled allowlist
 docker exec      "$FW" fw blocks                   # last 30 access log lines
 docker exec -it  "$FW" fw log                      # follow the live access log
+docker exec      "$FW" fw feature list             # all features, their state and domains
+docker exec      "$FW" fw feature on  azure        # enable a built-in feature-set
+docker exec      "$FW" fw feature off npm          # disable a built-in feature-set
+docker exec      "$FW" fw feature show npm         # print raw .list file for a feature
+docker exec      "$FW" fw feature create mycdn \
+  -d "My CDN" --domain cdn.example.com             # create a user-defined feature (auto-enabled)
+docker exec      "$FW" fw feature edit mycdn \
+  --domain cdn.example.com \
+  --domain assets.example.com                      # edit a user-defined feature (full replacement)
+docker exec      "$FW" fw feature delete mycdn     # delete a user-defined feature
 ```
 
 All policy state lives on the `policy` volume, mounted at `/policy` inside the `firewall` container. The watcher process recompiles the ACL and reconfigures Squid within ~5 seconds of any change.
 
 | File | Purpose |
 |---|---|
-| `/policy/features.defs/` | Feature-set definitions, refreshed from the baked firewall image on every start (image is source of truth). |
+| `/policy/features.defs/` | Built-in feature-set definitions, refreshed from the baked firewall image on every start (image is source of truth). |
+| `/policy/features.d/` | User-created feature-set definitions (`<name>.list`), on the shared `policy` volume. Persist across restarts; created/edited/deleted via `fw feature create/edit/delete` or the web UI. |
 | `/policy/features.state` | Which feature-sets are on/off — `<name>=on\|off` per line. Written by `fw feature` / the control UI. |
 | `/policy/allowlist.acl.perm` | Manual permanent allows (`fw allow`) — one domain per line. Starts empty. |
 | `/policy/ttl.tsv` | Temporary allows — tab-separated `<epoch_expiry>\t<domain>`. |
