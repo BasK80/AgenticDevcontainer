@@ -116,7 +116,7 @@ Then rebuild the firewall image and enable the feature-set:
 docker compose -f .devcontainer/docker-compose.yml build firewall
 docker compose -f .devcontainer/docker-compose.yml up -d
 
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw feature on legacy-moderniser
 ```
 

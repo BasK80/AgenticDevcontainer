@@ -136,7 +136,7 @@ Tune the two lists to your own risk tolerance — add patterns you want to keep 
 docker compose -f .devcontainer/docker-compose.yml down -v
 
 # Or by name (replace YOURPROJECT with your folder basename):
-docker rm -f $(docker ps -aq --filter "name=claude-YOURPROJECT")
+docker rm -f $(docker ps -aq --filter "name=agentic-YOURPROJECT")
 docker volume ls --format '{{.Name}}' | grep '^YOURPROJECT-' | xargs -r docker volume rm
 ```
 
@@ -158,7 +158,7 @@ docker compose -f .devcontainer/docker-compose.yml up -d --remove-orphans
 
 > **Note:** If the `policy` volume does not exist yet (first run after removing `control`), create it manually before starting:
 > ```bash
-> docker volume create claude-YOURPROJECT-policy
+> docker volume create agentic-YOURPROJECT-policy
 > ```
 > Replace `YOURPROJECT` with your folder basename.
 
@@ -168,7 +168,7 @@ The web dashboard at `:8088` will no longer be available. The `fw` script inside
 
 ```bash
 # Set a shell variable for convenience (run on the host):
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 
 docker exec      "$FW" fw allow example.com       # permanent allow
 docker exec      "$FW" fw allow example.com 300   # temporary allow, 300s TTL

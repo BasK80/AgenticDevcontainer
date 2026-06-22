@@ -111,7 +111,7 @@ In VS Code:
 2. Run **Dev Containers: Reopen in Container**.
 3. First build takes **3–8 minutes** (three images get built). Subsequent starts are seconds.
 
-When the bottom-left of VS Code shows `Dev Container: claude-agentic-devcontainer`, you're in.
+When the bottom-left of VS Code shows `Dev Container: agentic-agentic-devcontainer`, you're in.
 
 ---
 
@@ -145,7 +145,7 @@ For **Foundry**: after switching, run `az login` before starting `claude`. Azure
 **Custom gateway only:** if your `ANTHROPIC_BASE_URL` points to a hostname not already in the allowlist, add it from your host shell before starting:
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw allow your-gateway.example.com
 ```
 
@@ -209,7 +209,7 @@ Both **survive container restarts** but are **lost on a full rebuild** — the i
 The container blocks outbound traffic by default. The npm and PyPI registries (`registry.npmjs.org`, `pypi.org`, `.pythonhosted.org`) are already on the allowlist, so the commands above work out of the box. If a tool pulls from another host and the install hangs or returns a 403, add that host from your **host** shell:
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw allow <hostname>
 ```
 
@@ -223,7 +223,7 @@ See [README — Manage the allowlist from the host](README.md#manage-the-allowli
 The gateway hostname isn't in the firewall allowlist. From your **host** shell (not inside the container), in the repo root:
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw blocks                              # see what got blocked
 docker exec "$FW" fw allow <hostname>                    # add it; takes effect within ~5 seconds
 docker exec "$FW" fw list                                # confirm it's there

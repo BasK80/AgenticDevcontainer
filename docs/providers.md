@@ -185,7 +185,7 @@ On the host:
 
 ```bash
 # Replace YOURPROJECT with your actual folder basename.
-docker ps --filter "name=claude-YOURPROJECT" --format "{{.Names}}\t{{.Ports}}"
+docker ps --filter "name=agentic-YOURPROJECT" --format "{{.Names}}\t{{.Ports}}"
 ```
 
 Expected: three containers (`-development`, `-firewall`, `-control`) and the `development` container should show `127.0.0.1:8400-8999->8400-8999/tcp`.
@@ -226,7 +226,7 @@ opencode's Copilot flow reaches a few domains the default-deny firewall must all
 - `opencode` feature → `models.dev`, opencode's model catalogue — on by default.
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw feature on copilot     # pulls in github automatically
 ```
 
@@ -237,7 +237,7 @@ docker exec "$FW" fw feature on copilot     # pulls in github automatically
 Toggling a feature takes effect within ~5s, no rebuild:
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw feature on copilot     # .githubcopilot.com (+ github via dependency)
 # opencode catalogue (models.dev) is the `opencode` feature, on by default.
 ```

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Firewall management — run from the host:
-#   FW="claude-$(basename "$PWD")-firewall"
+#   FW="agentic-$(basename "$PWD")-firewall"
 #   docker exec      "$FW" fw allow <domain> [ttl_seconds]
 #   docker exec      "$FW" fw deny  <domain>
 #   docker exec      "$FW" fw list
@@ -434,7 +434,7 @@ case "${1:-}" in
     echo "       fw audit [--from DATE] [--to DATE] [--host PATTERN] [--status denied|allowed] [--limit N]"
     echo ""
     echo "run from the host as:"
-    echo "  FW=\"claude-\$(basename \"\$PWD\")-firewall\""
+    echo "  FW=\"agentic-\$(basename \"\$PWD\")-firewall\""
     echo "  docker exec      \"\$FW\" fw <command>"
     echo "  docker exec -it  \"\$FW\" fw log"
     ;;

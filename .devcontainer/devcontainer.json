@@ -1,5 +1,5 @@
 {
-  "name": "claude-${localWorkspaceFolderBasename}",
+  "name": "agentic-${localWorkspaceFolderBasename}",
   "dockerComposeFile": "docker-compose.yml",
   "service": "development",
   "workspaceFolder": "/workspace",

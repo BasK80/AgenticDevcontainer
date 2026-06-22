@@ -1,4 +1,4 @@
-# Claude Code Dev Container
+# Agentic Dev Container
 
 A generic hardened Dev Container for running AI coding agents safely. Provides default-deny network isolation, project-scoped state, and non-root execution out of the box — then makes that sandbox comfortable to live in, with first-class support for several agent frameworks (Claude Code, opencode, GitHub Copilot CLI) and LLM providers (Anthropic direct, Anthropic API key / gateway, Azure AI Foundry, GitHub Copilot).
 
@@ -53,7 +53,7 @@ For a step-by-step first-time setup guide (prerequisites, Windows/WSL, API key, 
 All allowlist management runs on the **host**, not inside the dev container:
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw allow pypi.org          # permanent allow
 docker exec "$FW" fw deny  pypi.org          # remove
 docker exec "$FW" fw feature on azure        # enable a built-in feature-set
@@ -71,7 +71,7 @@ A web dashboard is available at **<http://127.0.0.1:8088>** — toggle features,
 Every proxied request (allowed and denied) is recorded to a long-term audit log — a SQLite database in the `firewall` container, on its own `auditlog` volume. Query it from the host with `fw audit`, or from the dashboard's **Audit Log** card (filter by time range / host / decision, then download the period as CSV):
 
 ```bash
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 docker exec "$FW" fw audit                                   # last 50 entries
 docker exec "$FW" fw audit --from 2026-06-01 --to 2026-06-10 # by date range
 docker exec "$FW" fw audit --host github.com --status allowed

@@ -119,7 +119,7 @@ volume alongside the existing ones in `docker-compose.yml`:
 # docker-compose.yml — ILLUSTRATIVE, verify before use
 volumes:
   execaudit:
-    name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-execaudit
+    name: agentic-${LOCAL_WORKSPACE_FOLDER_BASENAME}-execaudit
 ```
 
 …mounted into the audit sidecar (and read-only into `control` if you want it on
@@ -144,7 +144,7 @@ kernel before committing to either path.
 > therefore one audit facility.
 
 That collides head-on with this repo's core invariant — **everything is
-per-project and isolated** (`claude-<project>-firewall`, per-project volumes, no
+per-project and isolated** (`agentic-<project>-firewall`, per-project volumes, no
 cross-project bleed). You **cannot** run N independent per-project `auditd`
 sidecars each owning `execve` rules: they contend for the one audit netlink
 (only one holds it), and each would observe *every* project's execs, not just
@@ -194,7 +194,7 @@ per project):
 # docker-compose.yml — ILLUSTRATIVE, verify before use
 audit:
   build: ./audit            # auditd + laurel + an auditlog.py-style tailer
-  container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-audit
+  container_name: agentic-${LOCAL_WORKSPACE_FOLDER_BASENAME}-audit
   cap_add: [AUDIT_CONTROL, AUDIT_READ]
   pid: "host"               # to resolve/attribute PIDs to the right container
   networks: [egress]        # NOT on internal — unreachable from development
@@ -247,7 +247,7 @@ spec:
 # docker-compose.yml — ILLUSTRATIVE, verify before use
 audit:
   image: quay.io/cilium/tetragon:latest   # pin a digest in practice
-  container_name: claude-${LOCAL_WORKSPACE_FOLDER_BASENAME}-audit
+  container_name: agentic-${LOCAL_WORKSPACE_FOLDER_BASENAME}-audit
   privileged: true            # or CAP_BPF + CAP_PERFMON, kernel-dependent
   pid: "host"
   networks: [egress]          # NOT on internal — unreachable from development

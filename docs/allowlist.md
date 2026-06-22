@@ -4,7 +4,7 @@
 
 ```bash
 # Set once in your host shell (or add to ~/.bashrc / ~/.zshrc):
-FW="claude-$(basename "$PWD")-firewall"
+FW="agentic-$(basename "$PWD")-firewall"
 
 docker exec      "$FW" fw allow pypi.org                   # permanent allow
 docker exec      "$FW" fw allow files.pythonhosted.org 60  # temporary allow, 60s TTL
@@ -129,7 +129,7 @@ feature-granted domain with `fw deny` is refused and points you at
 # From inside the dev container:
 curl -s http://firewall:8099 | tail -30
 
-# From the host (FW="claude-$(basename "$PWD")-firewall"):
+# From the host (FW="agentic-$(basename "$PWD")-firewall"):
 docker exec      "$FW" fw blocks                           # last 30 access log lines
 docker exec -it  "$FW" fw log                              # live tail
 docker exec      "$FW" fw list                             # current compiled allowlist
