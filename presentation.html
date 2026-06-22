@@ -559,13 +559,38 @@
   .clickzone.right { right: 0; }
   @media (max-width: 860px) { .clickzone { display: none; } .hint { display: none; } }
 
+  /* ---------- Feature-sets mock (slide 6) ---------- */
+  .fs-wrap { border-radius: 12px; overflow: hidden; border: 1px solid #27272a; background: #09090b; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; font-size: 12px; line-height: 1.4; box-shadow: 0 20px 48px rgba(0,0,0,.5); }
+  .fs-card-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #27272a; background: #18181b; }
+  .fs-card-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #a1a1aa; flex: 1; }
+  .fs-card-meta { font-size: 10px; color: #52525b; flex: 2; }
+  .fs-create-btn { padding: 3px 9px; border: 1px solid #60a5fa; border-radius: 3px; background: rgba(96,165,250,.12); color: #60a5fa; font-size: 10px; cursor: default; font-family: inherit; white-space: nowrap; }
+  .fs-tbl { width: 100%; border-collapse: collapse; }
+  .fs-tbl th { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #71717a; padding: 5px 10px; text-align: left; border-bottom: 1px solid #27272a; background: #09090b; }
+  .fs-tbl td { padding: 6px 10px; border-bottom: 1px solid #1c1c1f; vertical-align: top; }
+  .fs-tbl tr:last-child td { border-bottom: none; }
+  .fs-feat-name { font-size: 12px; font-weight: 600; color: #e4e4e7; }
+  .fs-badge { display: inline-block; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 5px; border-radius: 3px; margin-left: 5px; }
+  .fs-badge-builtin { background: #27272a; color: #71717a; }
+  .fs-badge-user { background: rgba(96,165,250,.18); color: #60a5fa; }
+  .fs-meta { font-size: 10px; color: #52525b; margin-top: 2px; }
+  .fs-state-on { color: #4ade80; font-size: 12px; font-weight: 600; }
+  .fs-state-dep { color: #60a5fa; font-size: 12px; font-weight: 600; }
+  .fs-state-off { color: #52525b; font-size: 12px; }
+  .fs-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+  .fs-chip { font-family: ui-monospace,monospace; font-size: 10px; padding: 1px 5px; border: 1px solid #27272a; border-radius: 8px; color: #71717a; }
+  .fs-chip-more { font-size: 10px; padding: 1px 5px; border: 1px solid #374151; border-radius: 8px; color: #60a5fa; cursor: default; background: none; font-family: inherit; }
+  .fs-btn { padding: 2px 7px; border: 1px solid #27272a; border-radius: 3px; background: #09090b; color: #a1a1aa; font-size: 10px; cursor: default; font-family: inherit; }
+  .fs-btn-dis { padding: 2px 8px; border-radius: 3px; border: 1px solid #b45309; background: rgba(234,88,12,.08); color: #f87171; font-size: 10px; cursor: default; font-family: inherit; }
+  .fs-btn-en  { padding: 2px 8px; border-radius: 3px; border: 1px solid #15803d; background: rgba(74,222,128,.08); color: #4ade80; font-size: 10px; cursor: default; font-family: inherit; }
+  .fs-locked { font-size: 10px; color: #52525b; font-style: italic; }
+  .fs-act { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+
   /* scrollbar */
   .slide::-webkit-scrollbar { width: 8px; }
   .slide::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 4px; }
 
   .footnote { font-size: 12.5px; color: var(--text-faint); margin-top: 16px; font-family: var(--mono); }
-
-  /* ---------- Dashboard mock (slide 5) ---------- */
   .dm-wrap { border-radius: 12px; overflow: hidden; border: 1px solid #27272a; background: #09090b; font-family: system-ui,-apple-system,BlinkMacSystemFont,sans-serif; font-size: 13px; line-height: 1.4; box-shadow: 0 20px 48px rgba(0,0,0,.5); }
   .dm-shell { display: grid; grid-template-columns: 148px 1fr; }
   .dm-sidebar { background: #18181b; border-right: 1px solid #27272a; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
@@ -738,7 +763,7 @@
         <div>
           <ul class="flist">
             <li><span class="b">&#9656;</span><span><strong>Domain-based, not IP.</strong> The allowlist is hostnames &mdash; resilient to CDN / Azure IP rotation, no re-resolution needed.</span></li>
-            <li><span class="b">&#9656;</span><span><strong>Baseline + feature-sets.</strong> A tiny always-on baseline plus toggleable sets (<span class="mono">anthropic</span>, <span class="mono">github</span>, <span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;). Toggle whole categories via the dashboard or <span class="mono">fw feature on|off &lt;name&gt;</span> &mdash; takes effect in ~5&thinsp;s without a rebuild. Turn off what you don&rsquo;t use to shrink the exfil surface.</span></li>
+            <li><span class="b">&#9656;</span><span><strong>Baseline + feature-sets.</strong> A tiny always-on baseline plus toggleable sets (<span class="mono">anthropic</span>, <span class="mono">github</span>, <span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;). Toggle whole categories via the dashboard or <span class="mono">fw feature on|off &lt;name&gt;</span> &mdash; takes effect in ~5&thinsp;s without a rebuild. Create your own feature-sets for project-specific domains with <span class="mono">fw feature create</span> or the web UI. Turn off what you don&rsquo;t use to shrink the exfil surface.</span></li>
             <li><span class="b">&#9656;</span><span><strong>Readable 403, not a cryptic failure.</strong> A blocked request returns a plain-text page explaining the host is off the allowlist &mdash; so agents surface actionable guidance instead of retrying.</span></li>
             <li><span class="b">&#9656;</span><span><strong>Hot-reload &amp; live dashboard.</strong> Changes take effect in <span class="mono">~5s</span>; a localhost-only dashboard streams every request, green (allowed) / red (denied).</span></li>
             <li><span class="b">&#9656;</span><span><strong>Long-term audit log.</strong> Every request &mdash; allowed and denied &mdash; is persisted to a SQLite log (retention configurable, default <span class="mono">2 months</span>). Query it by time / host / decision via <span class="mono">fw audit</span> or the dashboard, and export any period to CSV.</span></li>
@@ -845,7 +870,7 @@
         <ul class="flist">
           <li><span class="b">&#9656;</span><span><strong>Live traffic stream.</strong> Every proxied request scrolls in real time &mdash; green for allowed, red for denied. Filter by host; pause to inspect.</span></li>
           <li><span class="b">&#9656;</span><span><strong>One-click unblocking.</strong> Blocked domains surface in &ldquo;Recently Blocked&rdquo; with instant Allow buttons &mdash; permanent or time-limited (5m / 15m / 1h / custom TTL).</span></li>
-          <li><span class="b">&#9656;</span><span><strong>Feature-set toggles.</strong> Enable or disable whole domain groups (<span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;) without touching a config file.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Feature-set management.</strong> Enable or disable whole domain groups (<span class="mono">npm</span>, <span class="mono">azure</span>, <span class="mono">pypi</span>&hellip;) without touching a config file. Create, edit, and delete user-defined feature-sets for your project&rsquo;s own domains. Dependencies are tracked &mdash; enabling <span class="mono">copilot</span> automatically activates <span class="mono">github</span>; the table makes that visible.</span></li>
           <li><span class="b">&#9656;</span><span><strong>Audit log queries.</strong> Search the long-term SQLite log by date range, host, and decision &mdash; then download any period as CSV.</span></li>
           <li><span class="b">&#9656;</span><span><strong>Allowlist management.</strong> View permanent, temporary (with live countdown), and baseline entries side by side. Remove any with one click.</span></li>
         </ul>
@@ -854,7 +879,92 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 6 — SECURITY MEASURES (was 5) ============ -->
+  <!-- ============ SLIDE 6 — FEATURE SETS ============ -->
+  <section class="slide" data-title="Feature sets">
+    <div class="slide-inner">
+      <div class="kicker">Allowlist management &middot; Feature sets</div>
+      <h2>Built-in toggles.<br><span class="accent">User-defined sets.</span></h2>
+
+      <div class="grid mt-m" style="grid-template-columns:1.6fr 1fr;gap:24px;align-items:start">
+
+        <!-- Feature sets table mock -->
+        <div class="fs-wrap">
+          <div class="fs-card-hdr">
+            <span class="fs-card-title">Feature sets</span>
+            <span class="fs-card-meta">User-created features persist in <code style="font-family:ui-monospace,monospace;font-size:10px;color:#a1a1aa">/policy/features.d/</code></span>
+            <button class="fs-create-btn">+ Create Feature</button>
+          </div>
+          <table class="fs-tbl">
+            <thead><tr><th>Feature</th><th>State</th><th>Domains</th><th>Actions</th></tr></thead>
+            <tbody>
+              <!-- copilot — on, built-in, depends github -->
+              <tr>
+                <td>
+                  <span class="fs-feat-name">copilot</span><span class="fs-badge fs-badge-builtin">Built-in</span>
+                  <div class="fs-meta">depends: github</div>
+                  <div class="fs-meta">GitHub Copilot inference</div>
+                </td>
+                <td><span class="fs-state-on">On</span></td>
+                <td><div class="fs-chips"><span class="fs-chip">*.githubcopilot.com</span><span class="fs-chip">*.github.com</span></div></td>
+                <td><div class="fs-act"><button class="fs-btn-dis">Disable</button></div></td>
+              </tr>
+              <!-- github — via dep (pulled by copilot) -->
+              <tr>
+                <td>
+                  <span class="fs-feat-name">github</span><span class="fs-badge fs-badge-builtin">Built-in</span>
+                  <div class="fs-meta">git, gh, package installs</div>
+                </td>
+                <td><span class="fs-state-dep">Via copilot</span></td>
+                <td><div class="fs-chips"><span class="fs-chip">github.com</span><span class="fs-chip">.github.com</span><span class="fs-chip-more">+3 more</span></div></td>
+                <td><div class="fs-act"><span class="fs-locked">Locked by copilot</span></div></td>
+              </tr>
+              <!-- npm — on, built-in -->
+              <tr>
+                <td>
+                  <span class="fs-feat-name">npm</span><span class="fs-badge fs-badge-builtin">Built-in</span>
+                  <div class="fs-meta">npm / yarn registries</div>
+                </td>
+                <td><span class="fs-state-on">On</span></td>
+                <td><div class="fs-chips"><span class="fs-chip">registry.npmjs.org</span><span class="fs-chip-more">+2 more</span></div></td>
+                <td><div class="fs-act"><button class="fs-btn-dis">Disable</button></div></td>
+              </tr>
+              <!-- pypi — off, built-in -->
+              <tr>
+                <td>
+                  <span class="fs-feat-name">pypi</span><span class="fs-badge fs-badge-builtin">Built-in</span>
+                  <div class="fs-meta">Python package index</div>
+                </td>
+                <td><span class="fs-state-off">Off</span></td>
+                <td><div class="fs-chips"><span class="fs-chip">pypi.org</span><span class="fs-chip">files.pythonhosted.org</span></div></td>
+                <td><div class="fs-act"><button class="fs-btn-en">Enable</button></div></td>
+              </tr>
+              <!-- myregistry — on, user-created -->
+              <tr>
+                <td>
+                  <span class="fs-feat-name">myregistry</span><span class="fs-badge fs-badge-user">User</span>
+                  <div class="fs-meta">Private npm registry</div>
+                </td>
+                <td><span class="fs-state-on">On</span></td>
+                <td><div class="fs-chips"><span class="fs-chip">registry.example.com</span></div></td>
+                <td><div class="fs-act"><button class="fs-btn-dis">Disable</button> <button class="fs-btn">Edit</button> <button class="fs-btn" style="color:#f87171;border-color:#7f1d1d">Delete</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Bullets -->
+        <ul class="flist">
+          <li><span class="b">&#9656;</span><span><strong>Clear state column.</strong> Each feature shows <span style="color:var(--green);font-family:var(--mono);font-size:13px">On</span>, <span style="color:var(--cyan);font-family:var(--mono);font-size:13px">Via copilot</span>, or <span style="color:var(--text-faint);font-family:var(--mono);font-size:13px">Off</span> &mdash; no ambiguous badge to decode.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Dependencies surfaced, not hidden.</strong> Enabling <span class="mono">copilot</span> activates <span class="mono">github</span>; the table shows that explicitly and locks the toggle with &ldquo;Locked by copilot&rdquo; so you can&rsquo;t accidentally half-disable it.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>User-defined features.</strong> Create a named set for any domain group your project needs &mdash; stored on the <span class="mono">policy</span> volume, persists across restarts. Full Create / Edit / Delete cycle from the UI or <span class="mono">fw feature create/edit/delete</span>.</span></li>
+          <li><span class="b">&#9656;</span><span><strong>Safe cascade on delete.</strong> Deleting a feature that others depend on shows a confirmation naming the affected features and automatically strips the dangling dependency reference.</span></li>
+        </ul>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SLIDE 7 — SECURITY MEASURES ============ -->
   <section class="slide" data-title="Security">
     <div class="slide-inner">
       <div class="kicker">Defense in depth</div>
@@ -878,7 +988,7 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 6 — EASE OF USE ============ -->
+  <!-- ============ SLIDE 8 — EASE OF USE ============ -->
   <section class="slide" data-title="Ease of use">
     <div class="slide-inner">
       <div class="kicker">A sandbox you actually want to live in</div>
@@ -903,7 +1013,7 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 7 — PROVIDERS ============ -->
+  <!-- ============ SLIDE 9 — PROVIDERS ============ -->
   <section class="slide" data-title="Providers">
     <div class="slide-inner">
       <div class="kicker">Pluggable LLM providers</div>
@@ -935,7 +1045,7 @@
     </div>
   </section>
 
-  <!-- ============ SLIDE 8 — GET STARTED + CLOSE ============ -->
+  <!-- ============ SLIDE 10 — GET STARTED + CLOSE ============ -->
   <section class="slide" data-title="Get started">
     <div class="slide-inner">
       <div class="kicker">Get started · and how it compares</div>
@@ -975,7 +1085,7 @@
   <button class="nav-btn" id="prev" aria-label="Previous slide">&#8592;</button>
   <div id="dots"></div>
   <div class="nav-group">
-    <span id="counter"><b>1</b> / 8</span>
+    <span id="counter"><b>1</b> / 10</span>
     <button class="nav-btn" id="next" aria-label="Next slide">&#8594;</button>
   </div>
 </div>
