@@ -1,8 +1,9 @@
 FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      squid socat procps ca-certificates python3 tzdata \
+      squid socat procps ca-certificates python3 tzdata dnsmasq \
     && rm -rf /var/lib/apt/lists/*
 COPY squid.conf /etc/squid/squid.conf
+COPY dnsmasq.conf /etc/dnsmasq.conf
 # Feature-set definitions (baseline + one .list per toggleable feature). The
 # entrypoint refreshes /policy/features.defs from these on every start, so the
 # baked image is the source of truth for what each feature grants.

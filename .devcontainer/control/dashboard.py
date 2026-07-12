@@ -36,6 +36,7 @@ AUDIT_DB    = os.environ.get("AUDIT_DB",      "/auditlog/audit.db")
 ALLOW_CMD   = os.environ.get("ALLOW_CMD",     "/usr/local/bin/allow")
 DENY_CMD    = os.environ.get("DENY_CMD",      "/usr/local/bin/deny")
 FEATURE_CMD = os.environ.get("FEATURE_CMD",   "/usr/local/bin/feature")
+PROJECT_NAME = os.environ.get("PROJECT_NAME",  "")
 MAX_BODY    = 4096   # bytes — cap on POST body (default)
 MAX_BODY_FEATURE = 65536  # bytes — cap for feature CRUD endpoints
 AUDIT_MAX_ROWS = 1000   # server-side cap on /api/audit (download is uncapped)
@@ -48,6 +49,15 @@ _ALLOWED_HOSTS = frozenset({
     "localhost",        f"localhost:{PORT}",
     "[::1]",            f"[::1]:{PORT}",
 })
+
+# allowed-hosts-fix: the host-side CONTROL_PORT may differ from the
+# internal PORT=8088 (per-project port derivation). Extend the set so
+# browsers connecting via the derived port pass the Host header check.
+_cp = os.environ.get('CONTROL_PORT', '')
+if _cp and _cp != str(PORT):
+    _ALLOWED_HOSTS = _ALLOWED_HOSTS | {
+        f"127.0.0.1:{_cp}", f"localhost:{_cp}", f"[::1]:{_cp}",
+    }
 
 # Valid bare domain or wildcard-parent (.example.com).
 # Rejects shell metacharacters, path separators, spaces, etc.
@@ -421,7 +431,7 @@ _HTML = r"""<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Firewall Dashboard</title>
+<title>Firewall Dashboard · __PROJECT__</title>
 <style>
 :root{
   --bg:#f4f4f5;--surface:#fff;--border:#e4e4e7;
@@ -630,7 +640,7 @@ tr.resolved .td-domain{opacity:.75}
   <!-- Sidebar navigation -->
   <nav class="sidebar">
     <div class="brand">
-      Firewall
+      Firewall<span style="font-weight:400;color:var(--muted);font-size:12px;margin-left:6px">__PROJECT__</span>
       <span class="dot" id="dot" title="Live stream connection"></span>
     </div>
     <button class="nav-item" data-view="traffic">Traffic
@@ -1626,7 +1636,7 @@ class _Handler(BaseHTTPRequestHandler):
             return
         path = urllib.parse.urlsplit(self.path).path
         if path == "/":
-            body = _HTML.encode()
+            body = _HTML.replace("__PROJECT__", PROJECT_NAME or "").encode()
             self._send(200, "text/html; charset=utf-8", body)
         elif path == "/api/allowlist":
             self._json(_read_allowlist())

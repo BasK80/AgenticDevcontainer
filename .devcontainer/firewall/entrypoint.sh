@@ -55,4 +55,14 @@ rm -f /run/squid.pid
 mkdir -p /auditlog 2>/dev/null || true
 /usr/local/bin/auditlog.py &
 
+# Local DNS resolver for the internal, default-deny development container so
+# its tools can pre-resolve external hostnames (see apply-fix-web-proxy.sh).
+# Egress itself stays enforced by Squid below.
+# dnsmasq-listen-fix: this project derives a per-project subnet in
+# initialize.sh, so the firewall's internal IP is NOT the hardcoded
+# 172.28.0.2 in dnsmasq.conf. Bind dnsmasq to the real FIREWALL_IP so
+# the development container's resolver target is actually served.
+sed -i "s/^listen-address=.*/listen-address=127.0.0.1,${FIREWALL_IP:-172.28.0.2}/" /etc/dnsmasq.conf
+dnsmasq --conf-file=/etc/dnsmasq.conf 2>/dev/null || true
+
 exec squid -N -d1

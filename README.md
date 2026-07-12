@@ -1,5 +1,7 @@
 # Agentic Dev Container
 
+> **Personal project — public, but not a maintained product.** This is a personal project, shared as-is under the [MIT License](LICENSE); it may or may not see further development, and issues or pull requests may not be triaged or answered. It aims to be secure, but security is a design goal, not a guarantee — the container is one layer of defense, not a substitute for your own security practices, and you remain responsible for assessing its fitness before relying on it.
+
 A generic hardened Dev Container for running AI coding agents safely. Provides default-deny network isolation, project-scoped state, and non-root execution out of the box — then makes that sandbox comfortable to live in, with first-class support for several agent frameworks (Claude Code, opencode, GitHub Copilot CLI) and LLM providers (Anthropic direct, Anthropic API key / gateway, Azure AI Foundry, GitHub Copilot).
 
 ## Goal
@@ -64,7 +66,7 @@ docker exec "$FW" fw blocks                  # recent blocked requests
 docker exec "$FW" fw audit --status denied   # query the long-term audit log
 ```
 
-A web dashboard is available at **<http://127.0.0.1:8088>** — toggle features, allow/deny domains, browse the audit log, and create or edit user-defined feature-sets from the browser. See **[docs/allowlist.md](docs/allowlist.md)** for full reference including feature-sets, TTL allows, debugging, and the block feed.
+A web dashboard is available at **<http://127.0.0.1:8088>** (the default; the exact port is derived per project so multiple instances can run at once — the terminal banner that greets you on attach prints the concrete URL and project name for **this** instance). Use it to toggle features, allow/deny domains, browse the audit log, and create or edit user-defined feature-sets from the browser. See **[docs/allowlist.md](docs/allowlist.md)** for full reference including feature-sets, TTL allows, debugging, and the block feed.
 
 ### Audit log
 
@@ -78,6 +80,12 @@ docker exec "$FW" fw audit --host github.com --status allowed
 ```
 
 Retention defaults to **2 months** and is pruned daily. Override it per project by setting `AUDIT_RETENTION_DAYS` in `.devcontainer/.env` (e.g. `AUDIT_RETENTION_DAYS=90`).
+
+### Running multiple instances in parallel
+
+`initialize.sh` derives everything project-specific from the **workspace folder name**: the internal subnet, the firewall IP, and the published host ports (the control-UI port and the `az login` callback range). So you can open several *differently-named* projects at the same time without collisions — each gets its own subnet, its own firewall, and its own dashboard port. On attach, the terminal banner prints the concrete control-UI URL and project name for that instance, so you always know which dashboard belongs to which container.
+
+Two folders with the **same name** intentionally collide (same subnet, ports, and container names) and cannot run simultaneously — rename one of the folders to run them side by side. This is a deliberate trade-off: a stable, predictable identity keyed off the folder name, instead of extra bookkeeping to disambiguate identical names.
 
 ## Documentation
 

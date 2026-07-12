@@ -28,6 +28,9 @@ echo "│    use-foundry       → Azure AI Foundry (run az login)       │"
 echo "│    use-anthropic-key → Anthropic API key (static fallback)   │"
 echo "│    llm-mode          → show active provider                  │"
 echo "│                                                              │"
-echo "│  Open http://127.0.0.1:8088 on the host PC to access the     │"
-echo "│  firewall management tooling.                                │"
+echo "│  Open the firewall management UI on the host PC — the        │"
+echo "│  exact URL for THIS instance is shown just below.            │"
 echo "└──────────────────────────────────────────────────────────────┘"
+
+# banner-url-fix
+printf "   → http://127.0.0.1:%s   (project: %s)\n" "${CONTROL_PORT:-8088}" "${LOCAL_WORKSPACE_FOLDER_BASENAME:-?}"

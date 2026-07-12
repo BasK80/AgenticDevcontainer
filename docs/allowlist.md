@@ -28,7 +28,7 @@ Changes take effect within ~5s (the firewall watcher reloads Squid). Run these o
 
 ## Web dashboard (localhost only)
 
-A single-page dashboard is served by the `control` container at **<http://127.0.0.1:8088>**. It is bound to `127.0.0.1` only — the same localhost-only pattern as the Azure login ports — and is not reachable from inside `development`.
+A single-page dashboard is served by the `control` container at **<http://127.0.0.1:8088>** (the default; the port is derived per project — the terminal banner prints the exact URL for each instance, and it is also written to `.devcontainer/.env` as `CONTROL_PORT`). It is bound to `127.0.0.1` only — the same localhost-only pattern as the Azure login ports — and is not reachable from inside `development`.
 
 The dashboard has three tabs:
 

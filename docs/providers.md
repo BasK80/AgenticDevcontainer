@@ -188,7 +188,7 @@ On the host:
 docker ps --filter "name=agentic-YOURPROJECT" --format "{{.Names}}\t{{.Ports}}"
 ```
 
-Expected: three containers (`-development`, `-firewall`, `-control`) and the `development` container should show `127.0.0.1:8400-8999->8400-8999/tcp`.
+Expected: three containers (`-development`, `-firewall`, `-control`) and the `development` container should show `127.0.0.1:8400-8999->8400-8999/tcp` (default; the exact per-project range comes from `DEV_PORT_BASE`/`DEV_PORT_END` in `.devcontainer/.env`).
 
 Login smoke test (inside container):
 

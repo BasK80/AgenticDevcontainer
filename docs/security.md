@@ -8,7 +8,7 @@
 
 **Domain-based filtering.** The allowlist is hostnames, not snapshotted IPs — resilient to CDN/Azure IP rotation. No periodic re-resolution needed.
 
-**Azure browser callback ingress (localhost-only).** To support `az login` browser flow in-container, localhost ports `8400-8999` are published from host to `development`. The firewall only filters egress, so inbound publishes don't bypass it. Limited to `127.0.0.1` on the host.
+**Azure browser callback ingress (localhost-only).** To support `az login` browser flow in-container, a localhost port range is published from host to `development` (`8400-8999` by default; derived per project by `initialize.sh` so parallel instances don't collide — see the exact range in `.devcontainer/.env` as `DEV_PORT_BASE`/`DEV_PORT_END`). The firewall only filters egress, so inbound publishes don't bypass it. Limited to `127.0.0.1` on the host.
 
 **Non-root user, no sudo.** Container runs as `devuser` (UID 1000) with no sudo privileges whatsoever.
 

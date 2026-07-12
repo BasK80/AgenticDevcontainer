@@ -162,7 +162,7 @@ docker compose -f .devcontainer/docker-compose.yml up -d --remove-orphans
 > ```
 > Replace `YOURPROJECT` with your folder basename.
 
-The web dashboard at `:8088` will no longer be available. The `fw` script inside the firewall container remains fully functional — use it directly:
+The web dashboard (default `:8088`, per-project `CONTROL_PORT` — see the terminal banner) will no longer be available. The `fw` script inside the firewall container remains fully functional — use it directly:
 
 ### Managing the firewall without the control container
 

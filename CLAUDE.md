@@ -10,17 +10,32 @@ route to the internet**. All outbound HTTP/HTTPS traffic is forced through a
 Squid forward proxy (the `firewall` container) that enforces a **default-deny
 allowlist**.
 
-If a network request fails, the most likely cause is **not** a DNS problem, a
-connectivity outage, or a wrong URL — it is that the destination domain is not
-on the allowlist. Do **not** retry blindly, switch to a different host, or
-assume the remote service is down. A blocked request returns an HTTP `403` from
-the proxy whose body explains the block.
+If a network request fails, do **not** retry blindly, switch to a different
+host, or assume the remote service is down. First read the error signature — it
+tells you which of three layers blocked the request:
+
+| Symptom | Layer | Cause & fix |
+| --- | --- | --- |
+| HTTP `403` from the proxy (body explains the block) | **Allowlist** | The destination domain is not allowed. This is the most common cause. Confirm and allow the domain (see below). |
+| `EAI_AGAIN` / `getaddrinfo ENOTFOUND` / every lookup fails | **DNS** | The container's resolver (dnsmasq on the firewall) isn't answering. The firewall image runs dnsmasq and binds it to this project's `FIREWALL_IP` automatically (baked into the image + entrypoint), so this only shows up on a stale build — **rebuild the firewall + dev container** and it clears. |
+| `ENETUNREACH` even though DNS resolves and the domain is allowed | **Proxy bypass** | A process is connecting directly instead of through the proxy — e.g. a Node single-executable app (the `copilot` binary that runs `web_fetch`) ignores `NODE_OPTIONS=--use-env-proxy`. The compose file sets `NODE_USE_ENV_PROXY=1` to cover this, so it too only shows up on a stale build — **rebuild the dev container**. |
+
+Once DNS and the proxy work, the **allowlist** is the only layer you tune day to
+day. The DNS resolver and proxy-env handling are baked into the firewall image
+and `docker-compose.yml`, so they need no per-clone setup.
 
 **To confirm a domain was blocked** (run inside the container):
 
 ```sh
 curl -s http://firewall:8099   # recent firewall denials, newest last
 ```
+
+**If DNS or proxy-bypass failures persist** (`EAI_AGAIN` / `ENETUNREACH`): they
+come from a stale firewall/dev-container image, not from anything editable inside
+the container. Rebuild the stack — *Dev Containers: Rebuild Container*, or on the
+host `docker compose -f .devcontainer/docker-compose.yml up -d --build` — then
+verify with `getent hosts github.com` (DNS) and a `web_fetch` of
+`https://github.com` (proxy).
 
 **To allow a domain**, tell the user to add it from the **host** — a process
 inside the container cannot modify its own allowlist, by design:
