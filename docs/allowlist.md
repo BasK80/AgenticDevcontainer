@@ -57,6 +57,7 @@ Microsoft apt, a generic JS CDN); everything project-specific is a feature.
 | `pypi` | Python package index | off |
 | `golang` | Go module proxy + checksum DB | off |
 | `azure` | Azure AI Foundry (Entra ID, ARM, Foundry portal, data plane) | off |
+| `ollama` | A local ollama on the host (`host.docker.internal`, plain HTTP on `11434`) — see [LLM providers](providers.md#local-ollama-on-the-host) | off |
 | `infosupport` | Info Support LLM gateway (test) | off |
 
 Definitions live in two places:

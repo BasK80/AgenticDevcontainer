@@ -299,3 +299,63 @@ echo "$HTTPS_PROXY"                                  # http://firewall:3128
 ```
 
 Then run a small agentic task against a repo file and confirm a response. If a call is blocked, check the firewall block feed from inside the container (`curl -s http://firewall:8099`) and allowlist any genuinely-required domain on the host with `fw allow`.
+
+## Local ollama on the host
+
+<a id="reaching-ollama-on-the-host"></a>
+
+Ollama normally runs on the **host**, over plain HTTP on a non-standard port
+(`11434`). That is architecturally different from every other provider here:
+the development container sits on an `internal: true` network with no route to
+the internet *or, by default, to the host*, and the allowlist is built for
+HTTPS domains, not same-host ports. Three tracked pieces make it work, and all
+three are already in place — you only need to switch the last one on.
+
+1. **`docker-compose.yml`** maps `host.docker.internal` to the Docker
+   host-gateway on the **firewall** container, so Squid can reach the host.
+2. **`firewall/dnsmasq.conf`** deliberately omits `no-hosts`, so dnsmasq serves
+   that `/etc/hosts` entry to the development container's resolver. Without
+   this the name does not resolve inside the container at all.
+3. **`firewall/features/ollama.list`** allowlists `host.docker.internal`. It
+   ships **off by default** — opt in from the host:
+
+   ```bash
+   docker exec agentic-YOURPROJECT-firewall fw feature on ollama
+   ```
+
+   (Or toggle `ollama` in the control UI at <http://127.0.0.1:8088>.)
+
+Squid still brokers every request, so this is an explicit, auditable
+allowance — not a hole in the perimeter. Traffic is plain HTTP because it never
+leaves the machine.
+
+### Verify
+
+```bash
+# inside the container
+getent hosts host.docker.internal            # resolves to the host-gateway IP
+curl -s http://host.docker.internal:11434/api/version
+curl -s http://host.docker.internal:11434/api/tags | head
+```
+
+An HTTP `403` with the firewall's explanation page means the `ollama` feature
+is still off. `EAI_AGAIN` means DNS — rebuild the firewall image so the
+`no-hosts`-free `dnsmasq.conf` is actually in it.
+
+> **Ollama must listen beyond loopback.** By default it binds `127.0.0.1`,
+> which the host-gateway address cannot reach. Set `OLLAMA_HOST=0.0.0.0:11434`
+> on the host and restart ollama. Be aware this exposes it to your local
+> network unless a host firewall rule says otherwise.
+
+### Using it from opencode
+
+A *local* ollama is not catalogued on models.dev (only `ollama-cloud` is), so
+it needs a hand-written openai-compatible provider entry under `provider` in
+`~/.config/opencode/opencode.json`, pointed at
+`http://host.docker.internal:11434/v1`, with the model metadata supplied
+yourself. `llm-switch.sh`'s `_opencode_write_config()` merges and clears only
+the `anthropic` and `azure` keys, so a hand-added `ollama` entry survives
+`use-anthropic`/`use-foundry` and every new shell.
+
+The bundled `ollama-curate` and `pick-model` skills build on this — see
+[Adding skills and tools](../USAGE.md#adding-skills-and-tools).

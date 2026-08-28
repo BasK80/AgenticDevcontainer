@@ -28,6 +28,10 @@
         "ms-azuretools.vscode-docker"
       ],
       "settings": {
+        "remote.autoForwardPorts": false,
+        "remote.restoreForwardedPorts": false,
+        "remote.autoForwardPortsSource": "output",
+        "remote.forwardOnOpen": false,
         "terminal.integrated.defaultProfile.linux": "zsh"
       }
     }

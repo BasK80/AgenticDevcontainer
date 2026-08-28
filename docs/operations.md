@@ -48,7 +48,7 @@ The relevant package registry (npmjs.com, pypi.org, …) must be on the firewall
 
 ## Bundled skills
 
-The image ships **five bundled [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills)** under project-level `.claude/skills/` — four general-purpose productivity skills plus one security-validation skill, all broadly useful and stable enough to bake in. A single copy serves all three agents: Claude Code reads it natively, opencode via Claude-compat (on by default), and the Copilot CLI lists `.claude/skills/` among its project skill locations.
+The image ships **seven bundled [Agent Skills](https://docs.claude.com/en/docs/claude-code/skills)** at project level — four general-purpose productivity skills, one security-validation skill, and two model-selection skills, all broadly useful and stable enough to bake in. A single copy serves all three agents: Claude Code reads `.claude/skills/` natively, opencode via Claude-compat (on by default), and the Copilot CLI lists it among its project skill locations.
 
 | Skill | What it does |
 |---|---|
@@ -57,8 +57,12 @@ The image ships **five bundled [Agent Skills](https://docs.claude.com/en/docs/cl
 | `handoff` | Compacts the conversation into a handoff document another agent can pick up. |
 | `write-a-skill` | Scaffolds new Agent Skills with proper structure and progressive disclosure. |
 | `security-test` | Adversarial pentest of the container perimeter — runs escape / exfiltration / tamper probes from inside the container and reports HELD (blocked = good) / BYPASS (finding) per test. Trigger with `/security-test` (or "run the pentest"). See [Validating the perimeter](security.md#validating-the-perimeter). |
+| `pick-model` | Recommends which model fits the task — cloud by default, local only when the network is genuinely unreachable — and shows the reasoning so you can overrule it. In opencode it switches the session model itself via `.opencode/plugin/pick-model.ts`; elsewhere it prints the command. |
+| `ollama-curate` | Reports which local ollama models are installed, which are fully GPU-resident vs. CPU-RAM-bound on your hardware, what gaps remain against your offline needs, and what to pull or drop. |
 
 > `caveman`, `grill-me`, `handoff`, and `write-a-skill` were created by [Matt Pocock](https://github.com/mattpocock).
+
+> `pick-model` and `ollama-curate` use the symlinked `.agents/skills/` layout and need a local ollama reachable from the container — enable the `ollama` firewall feature and see [Local ollama on the host](providers.md#local-ollama-on-the-host). Both read a gitignored `/workspace/.model-picker/` data directory; seed it once with `cp -n .agents/skills/pick-model/seed/*.json .model-picker/`. `pick-model`'s opencode plugin needs a one-time `npm install` in `.opencode/`.
 
 For where to find **more** skills and how to add your own (skills are `SKILL.md` directories; Claude-only `/command` slash commands live in `.claude/commands/`), see the "Adding skills and tools" section in [`USAGE.md`](../USAGE.md).
 

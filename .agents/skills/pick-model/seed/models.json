@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "githubCopilotPricingCorrections": {
+    "note": "Facts sourced from docs.github.com (tickets 014, 018), not from opencode's model metadata — that metadata is known-wrong or silent on exactly these points. pick-model must apply these when it discovers/refreshes a github-copilot model, not just for the entries already cached below.",
+    "lastVerified": "2026-08-25",
+    "fastVariantMultiplier": {
+      "rule": "Any model id ending in '-fast' bills at 2x its non-fast counterpart's costPerMTokUSD (input, cached input, cache write, output all doubled).",
+      "documented": ["claude-opus-4.8-fast"],
+      "assumedByAnalogy": ["claude-opus-4.6-fast", "claude-opus-4.7-fast"],
+      "assumedByAnalogyNote": "No individually published rate exists for these two anywhere in GitHub's docs (checked directly, twice) — a live GitHub-staff-unanswered community thread confirms the gap is real. Apply the 2x override but keep provenance 'assumed', not 'measured', and re-check next pricing refresh.",
+      "source": "https://docs.github.com/en/enterprise-cloud@latest/copilot/reference/copilot-billing/models-and-pricing"
+    },
+    "longContextTier": {
+      "rule": "Threshold is input tokens for the request; when exceeded, cost doubles (2x) for both input and output. Applied automatically per-request against a single model id — no separate model variant to select (medium confidence: inferred from table structure, not stated in prose).",
+      "modelsWithTier": {
+        "gpt-5.4": 272000,
+        "gpt-5.5": 272000,
+        "gpt-5.6-sol": 272000,
+        "gpt-5.6-terra": 272000,
+        "gpt-5.6-luna": 200000
+      },
+      "everyOtherEntitledModel": "Default only — no long-context tier at all. Do not assume one exists for a model not in this list.",
+      "source": "https://docs.github.com/en/enterprise-cloud@latest/copilot/reference/copilot-billing/models-and-pricing"
+    },
+    "dataResidencySurcharge": {
+      "rule": "If the enterprise's 'Restrict Copilot to data residency compliant models' Copilot policy is enabled (off by default, independent of general enterprise data-residency configuration), every request's already-tiered final cost is multiplied by 1.10.",
+      "activeForBas": "unknown",
+      "activeForBasNote": "Bas is a regular member and cannot see this admin-only policy toggle directly; seeing 'data residency: EU' on the enterprise page does not confirm this specific Copilot policy is on. Treat as an unresolved ±10% band on absolute credit estimates, not a number to bake in — it does not affect model-to-model ranking either way.",
+      "source": "https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/github-copilot-with-data-residency"
+    }
+  },
+  "ollamaKvCacheAssumptions": {
+    "flashAttention": "unknown",
+    "kvCacheType": "f16",
+    "note": "Every ollama fitFormula.slopeBytesPerToken below assumes THIS config. If OLLAMA_FLASH_ATTENTION or OLLAMA_KV_CACHE_TYPE changes on the host (see ticket 016), this fingerprint no longer matches reality and every ollama model's slopeSource must be invalidated back to metadata-only until re-measured.",
+    "lastConfirmed": "2026-08-24"
+  },
+  "models": {
+    "ollama/qwen2.5:7b": {
+      "provider": "ollama",
+      "id": "qwen2.5:7b",
+      "weightsBytes": 4683087332,
+      "contextLimitAdvertised": 32768,
+      "capabilities": { "tools": true },
+      "fitFormula": {
+        "baseBytes": 4508981656,
+        "slopeBytesPerToken": 58368,
+        "slopeSource": "measured",
+        "slopeMetadataPredicted": 57344,
+        "archFields": {
+          "blockCount": 28,
+          "headCount": 28,
+          "headCountKv": 4,
+          "embeddingLength": 3584,
+          "headDim": 128
+        }
+      },
+      "maxFullyResidentContext": 30720,
+      "maxFullyResidentContextConfidence": "measured",
+      "tier": "context-dependent",
+      "tierNote": "Fast up to ~30.7k tokens (input+output); spills past that — misses its own advertised 32768 by ~70MB.",
+      "lastMeasured": "2026-08-24"
+    },
+    "ollama/qwen2.5:14b": {
+      "provider": "ollama",
+      "id": "qwen2.5:14b",
+      "weightsBytes": 8988124069,
+      "contextLimitAdvertised": 32768,
+      "capabilities": { "tools": true },
+      "fitFormula": {
+        "baseBytes": null,
+        "slopeBytesPerToken": 196608,
+        "slopeSource": "metadata_x1.02_unfitted",
+        "note": "Never fits usable VRAM at any context — weights alone (8.99GB) exceed the ~5.9GB ceiling. BASE/SLOPE not cleanly fitted since no non-spilled measurement exists.",
+        "archFields": {
+          "blockCount": 48,
+          "headCount": 40,
+          "headCountKv": 8,
+          "embeddingLength": 5120,
+          "headDim": 128
+        }
+      },
+      "maxFullyResidentContext": 0,
+      "maxFullyResidentContextConfidence": "measured",
+      "tier": "spill",
+      "tierNote": "Permanently spill-tier on this GPU: measured 62% GPU at 4096 ctx, 40% at 32768 ctx. Recommended: drop (see ticket 008) — decodeThroughput below shows it also loses on speed to the dedicated slow tier, so keeping it buys nothing.",
+      "decodeThroughput": [
+        { "ctx": 4096, "config": "natural (~62% GPU)", "tokPerSec": 6.15, "measuredAt": "2026-08-24" },
+        { "ctx": 4096, "config": "num_gpu:0 (forced CPU)", "tokPerSec": 5.29, "measuredAt": "2026-08-24" },
+        { "ctx": 8192, "config": "natural (~59% GPU)", "tokPerSec": 3.74, "note": "prefill 467 tok/s at 7080 input tokens — prefill is not the bottleneck, decode is", "measuredAt": "2026-08-24" }
+      ],
+      "lastMeasured": "2026-08-24"
+    },
+    "ollama/qwen3-coder:30b-a3b-q4_K_M": {
+      "provider": "ollama",
+      "id": "qwen3-coder:30b-a3b-q4_K_M",
+      "weightsBytes": 18556700761,
+      "contextLimitAdvertised": 262144,
+      "capabilities": { "tools": true },
+      "architecture": "qwen3moe",
+      "archFields": {
+        "blockCount": 48,
+        "headCount": 32,
+        "headCountKv": 4,
+        "embeddingLength": 2048,
+        "headDim": 64,
+        "expertCount": 128,
+        "expertUsedCount": 8,
+        "expertFeedForwardLength": 768
+      },
+      "fitFormula": {
+        "note": "Not evaluated as a fast (fully GPU-resident) candidate — weights alone (18.6GB) are ~3x the ~6.0-6.3GB usable VRAM ceiling from ticket 004. This entry exists for the deliberate slow tier instead; see decodeThroughput and tier below. KV cache is cheap by construction here (headCountKv=4, embeddingLength=2048) — under 1.5GB even at 32k ctx — so KV headroom was never the constraint, weight size was."
+      },
+      "decodeThroughput": [
+        { "ctx": 4096, "config": "natural (~33% GPU, 6.29/19.2GB)", "tokPerSec": 17.87, "measuredAt": "2026-08-24" },
+        { "ctx": 4096, "config": "num_gpu:0 (forced CPU)", "tokPerSec": 17.44, "measuredAt": "2026-08-24" },
+        { "ctx": 8192, "config": "natural (~32% GPU, 6.36/19.6GB)", "tokPerSec": 12.69, "note": "prefill 571 tok/s at 7059 input tokens", "measuredAt": "2026-08-24" }
+      ],
+      "tier": "slow",
+      "tierNote": "Deliberate CPU/RAM-bound slow tier for doc-review and code-agentic offline fallback (task types the fast tier can't serve — see ticket 008). ~2.9-3.4x faster decode than the dense qwen2.5:14b at every measured context because decode cost tracks active params (8-of-128 experts, ~3B active) not resident size (30.5B total). Clears the ~2min-per-500-1000-output-token usability floor proposed in ticket 017; qwen2.5:14b does not at longer context. GPU offload is ~irrelevant to throughput for this model (natural vs forced-CPU differ by ~2%, within noise) — CPU/RAM bandwidth dominates regardless. Capability claim, not a quality one — no eval was run; ships assumed.",
+      "lastMeasured": "2026-08-24"
+    },
+    "github-copilot/gpt-5.6-luna": {
+      "provider": "github-copilot",
+      "id": "gpt-5.6-luna",
+      "contextLimit": 1050000,
+      "maxOutput": 128000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 0.2, "output": 1.2, "cacheRead": 0.02, "cacheWrite": 0.25 },
+      "longContextTier": { "known": true, "thresholdTokens": 200000, "input": 0.4, "output": 1.8, "note": "Threshold published after all — see ticket 014 and the top-level githubCopilotPricingCorrections.longContextTier block." },
+      "variantsObserved": ["default"],
+      "costOverride": null,
+      "measuredQuality": {},
+      "pricingSource": "docs.github.com, verified against opencode metadata",
+      "lastVerified": "2026-08-24"
+    },
+    "github-copilot/claude-sonnet-5": {
+      "provider": "github-copilot",
+      "id": "claude-sonnet-5",
+      "contextLimit": 1000000,
+      "maxOutput": 64000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5 },
+      "longContextTier": null,
+      "variantsObserved": ["default", "high"],
+      "costOverride": null,
+      "measuredQuality": {},
+      "pricingSource": "docs.github.com, verified against opencode metadata",
+      "lastVerified": "2026-08-24"
+    },
+    "github-copilot/claude-opus-5": {
+      "provider": "github-copilot",
+      "id": "claude-opus-5",
+      "contextLimit": 1000000,
+      "maxOutput": 64000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 },
+      "longContextTier": null,
+      "variantsObserved": ["default"],
+      "costOverride": null,
+      "measuredQuality": {},
+      "pricingSource": "docs.github.com, verified against opencode metadata",
+      "lastVerified": "2026-08-24"
+    },
+    "github-copilot/claude-opus-4.8-fast": {
+      "provider": "github-copilot",
+      "id": "claude-opus-4.8-fast",
+      "contextLimit": 1000000,
+      "maxOutput": 64000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 },
+      "costOverride": {
+        "multiplier": 2,
+        "reason": "opencode metadata inherits non-fast Opus pricing (5/25) but GitHub docs list Opus 4.8 fast mode at 10/50 — double. Absent from models.dev catalogue, so cost was not sourced correctly upstream. See ticket 014.",
+        "effectiveCostPerMTokUSD": { "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5 }
+      },
+      "longContextTier": null,
+      "variantsObserved": ["default"],
+      "measuredQuality": {},
+      "pricingSource": "docs.github.com (override) — opencode metadata is WRONG for this model, do not trust costPerMTokUSD directly",
+      "lastVerified": "2026-08-24"
+    },
+    "github-copilot/gpt-5.3-codex": {
+      "provider": "github-copilot",
+      "id": "gpt-5.3-codex",
+      "contextLimit": 400000,
+      "maxOutput": 128000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 1.75, "output": 14 },
+      "longContextTier": null,
+      "variantsObserved": ["default"],
+      "costOverride": null,
+      "measuredQuality": {},
+      "pricingSource": "docs.github.com, verified against opencode metadata",
+      "lastVerified": "2026-08-24"
+    }
+  }
+}
