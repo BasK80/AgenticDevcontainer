@@ -62,19 +62,18 @@ first needs a percentage-of-allowance figure, ask directly: "Business (1,900
 credits/month) or Enterprise (3,900)?" Cache the answer plus
 `monthlyCredits` and today's date under `creditAllowance`, `source: "asked"`.
 Never guess it, and don't ask again once cached — re-ask only if the user says
-their seat changed. This is deliberately **not** blocked on
-[Establishing seat type and how to read the remaining AI credit
-pool](assets/credit-balance-readability.md) — that
-document covers the much harder *remaining balance* question (confirmed
-unreachable for a regular member; see its resolution), which this skill does
-not need in order to compute "X% of your month."
+their seat changed. This is deliberately **not** blocked on reading the
+*remaining balance*, which is a much harder question — confirmed unreachable
+for a regular enterprise member, since the pool-level billing endpoints
+require administrator or billing-manager rights. This skill does not need it
+in order to compute "X% of your month."
 
 **Optional, degradable extra:** a per-user AI-credit endpoint
 (`GET /users/{username}/settings/billing/ai_credit/usage` on the GHE host)
 exists and a regular member was confirmed able to see their own recent usage
 via the web UI with no special role — but this was never wired up or tested against the live
-API (see [the credit-balance asset](assets/credit-balance-readability.md)),
-so treat it as something you *may* add
+API, and on a GHE Data Residency tenant it returned a clean `404` rather than
+a permission error — so treat it as something you *may* add
 later (e.g. "you've used ~X credits recently"), not something this skill
 needs to function. Skip it if it adds complexity disproportionate to the
 payoff.
@@ -120,10 +119,8 @@ minted when a real task doesn't fit, not guessed in advance.
 
 ## Offline detection
 
-One `curl`, classified by exit code + a header dump — full method and all
-five message variants in
-[the offline-detection asset](assets/offline-detection.md);
-this section is the short form.
+One `curl`, classified by exit code + a header dump. Everything needed to
+execute the probe is below.
 
 - Probe target: the **real API host**, not a generic domain — a generic
   domain can be allowlisted while the real endpoint isn't. Cloud:
@@ -298,8 +295,7 @@ handoff to get wrong.
 2. **The tool validates before switching**, against `GET /api/model` and
    `POST /api/session/{sessionID}/model` — because the switch endpoint
    itself returns success and silently stores a bogus model/provider
-   otherwise, per
-   [the model-switching asset](assets/opencode-model-switching.md).
+   otherwise — verified live, not assumed.
    If validation fails, it reports that plainly instead of switching.
    **Implementation note, verified live rather than assumed:** the plugin's
    `client` (`PluginInput.client`) is the v1 SDK client, which has no
@@ -326,10 +322,10 @@ handoff to get wrong.
 
 ## Pin the model catalogue
 
-Set `OPENCODE_DISABLE_MODELS_FETCH=1` or pin `OPENCODE_MODELS_PATH` to a
-local copy (found in
-[the model-switching asset](assets/opencode-model-switching.md))
-so that even the *catalogue lookup* never makes a network call — otherwise
+Set `OPENCODE_DISABLE_MODELS_FETCH=1`, or pin `OPENCODE_MODELS_PATH` to a
+local catalogue file you supply yourself (opencode also honours
+`OPENCODE_MODELS_URL`), so that even the *catalogue lookup* never makes a
+network call — otherwise
 the "no decision requires a network call" rule would have a leak one layer
 below the routing decision itself. This is environment
 configuration, not something this skill sets per-call; note it once and move

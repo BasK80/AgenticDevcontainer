@@ -1,8 +1,9 @@
 // pick-model actuation plugin — the mechanical half of the pick-model skill.
 //
 // Why a plugin at all: a prose skill running shell commands cannot address
-// the running opencode server (no discoverable port, no lock file, no
-// OPENCODE_SERVER_URL — see .agents/skills/pick-model/assets/opencode-model-switching.md).
+// the running opencode server — there is no discoverable port, no lock file
+// and no OPENCODE_SERVER_URL to find it by (verified against opencode
+// 1.18.21).
 // A plugin gets `client` for free via PluginInput, so the actual switch has
 // to live here.
 //
@@ -67,7 +68,7 @@ export const PickModelPlugin = async ({ client }) => {
           "provider/model — this tool only performs the mechanical switch " +
           "and validates the model actually exists first (the raw " +
           "session-model API returns 204 and stores a bogus model/provider " +
-          "silently — see assets/opencode-model-switching.md).",
+          "silently).",
         args: {
           providerID: tool.schema
             .string()

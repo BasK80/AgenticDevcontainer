@@ -1,9 +1,7 @@
 # Task taxonomy and routing policy
 
-Decided **2026-08-24** via grilling. Asset of
-Define the open task taxonomy and its routing table.
-This is the specification Write the pick-model skill
-implements.
+Decided **2026-08-24**. This is the specification that `pick-model`
+implements; `../REFERENCE.md` is the implementation, not a second copy of it.
 
 ## Routing policy — local is offline-only
 
@@ -13,8 +11,7 @@ best local model that fits.
 
 This **replaces** the three-tier policy set at charting time (fast local default
 for doc + mechanical work, cloud for agentic coding, spill local behind a gate).
-The reason is arithmetic, established by
-the credit-cost asset: the credit lever is *which
+The reason is arithmetic: the credit lever is *which
 cloud model*, not local-vs-cloud. For a 100k-in/10k-out turn, `claude-opus-5`
 costs 75 credits, `claude-sonnet-5` 30, `gpt-5.6-luna` 3.2, against a monthly
 allowance of 1,900 (Business) or 3,900 (Enterprise). Routing doc work to a local
@@ -46,8 +43,7 @@ never asked**. The user answers nothing in the common case.
 | Expected output size | Output tokens cost 5–12× input, so this is a first-class cost axis — not a detail. |
 
 **Local fit uses input + expected output**, because the KV cache grows during
-generation. Both axes feed
-the VRAM fit formula.
+generation. Both axes feed the VRAM fit formula in `ollama-curate`.
 
 **Stakes** was added during grilling and is not optional: willingness to pay is a
 function of consequence, not difficulty. A commit message and a migration plan can
@@ -131,8 +127,8 @@ job. The replacement protects **credits**.
   refactor would silently cover a 250-credit session. Same type, same consent,
   12× the spend.
 - **Allowance is a cached fact with a refresh path**, like the hardware profile —
-  it changes, but rarely. See
-  [seat type and credit balance](credit-balance-readability.md).
+  it changes, but rarely. The *remaining* balance is a different matter: it is
+  unreadable for a regular enterprise member, so never promise it.
 
 ## Escalation
 
@@ -171,7 +167,7 @@ benchmark can write into it and `pick-model` can read it.
 
 ## What a task-type record must hold
 
-What the data schema must make concrete:
+Mirrored by `preferences.json` (see `../seed/preferences.json`):
 
 - type name and a few **exemplar task descriptions** (the matching key)
 - the five **axis values**
