@@ -6,7 +6,7 @@ data directory (see § Configuration) and must be read live, never recited. If
 a number or model name below looks concrete, it's an example from a past run,
 not something to trust without re-reading the file. The specification this
 implements is
-[Task taxonomy and routing policy](assets/005-taxonomy-and-routing.md) —
+[Task taxonomy and routing policy](assets/taxonomy-and-routing.md) —
 this file is the implementation, not a second copy of the spec; read that
 asset for the *why* behind anything that looks arbitrary below.
 
@@ -32,7 +32,7 @@ Copilot catalogue against the live provider before trusting either.
 
 If `seed/` is also absent and `preferences.json` is missing, this is a true
 first run — create it with the five starting task types from
-[the taxonomy asset](assets/005-taxonomy-and-routing.md),
+[the taxonomy asset](assets/taxonomy-and-routing.md),
 every default marked `"provenance": "assumed"`, and continue.
 
 ## File ownership
@@ -53,7 +53,7 @@ every default marked `"provenance": "assumed"`, and continue.
   tool; no locking designed for.
 - Every written fact gets a `lastConfirmed`/`lastVerified` date and a
   provenance marker where the schema has one — staleness must always be
-  visible, never silent (map invariant 7).
+  visible, never silent.
 
 ## Seat type self-service
 
@@ -61,19 +61,20 @@ If `hardware.json.creditAllowance.seatType` is `null` when the consent gate
 first needs a percentage-of-allowance figure, ask directly: "Business (1,900
 credits/month) or Enterprise (3,900)?" Cache the answer plus
 `monthlyCredits` and today's date under `creditAllowance`, `source: "asked"`.
-Never guess it, and don't ask again once cached — re-ask only if Bas says his
-seat changed. This is deliberately **not** blocked on
-[Establish Bas's seat type and how to read the remaining AI credit
-pool](assets/015-seat-type-and-credit-balance.md) — that
-ticket covers the much harder *remaining balance* question (confirmed
+Never guess it, and don't ask again once cached — re-ask only if the user says
+their seat changed. This is deliberately **not** blocked on
+[Establishing seat type and how to read the remaining AI credit
+pool](assets/credit-balance-readability.md) — that
+document covers the much harder *remaining balance* question (confirmed
 unreachable for a regular member; see its resolution), which this skill does
 not need in order to compute "X% of your month."
 
 **Optional, degradable extra:** a per-user AI-credit endpoint
 (`GET /users/{username}/settings/billing/ai_credit/usage` on the GHE host)
-exists and Bas confirmed he can see his own recent usage via the web UI with
-no special role — but this was never wired up or tested against the live
-API (see ticket 015's resolution), so treat it as something you *may* add
+exists and a regular member was confirmed able to see their own recent usage
+via the web UI with no special role — but this was never wired up or tested against the live
+API (see [the credit-balance asset](assets/credit-balance-readability.md)),
+so treat it as something you *may* add
 later (e.g. "you've used ~X credits recently"), not something this skill
 needs to function. Skip it if it adds complexity disproportionate to the
 payoff.
@@ -101,8 +102,8 @@ reasoning is not free; it spends tokens in whatever session is active.
 | Input size | small / medium / large | this *is* the context length; drives both the cloud long-context penalty and local VRAM fit |
 | Output size | small / large | output tokens cost 5–12x input — a first-class cost axis |
 
-No latency axis — "I'm waiting on this" isn't derivable from task text; Bas
-says "fast" when he means it.
+No latency axis — "I'm waiting on this" isn't derivable from task text; the
+user says "fast" when they mean it.
 
 **Print the axis line and matched type before acting.** A wrong exemplar
 match is common and *confidently* wrong (a high-stakes rewrite can read like
@@ -111,7 +112,7 @@ not `doc-edit`" is the correction, and it only works if the match was shown.
 
 **Spanning tasks** (edits docs *and* refactors code in one go): the **more
 demanding type wins**. Under-provisioning costs a retry; over-provisioning
-costs credits Bas can see and object to.
+costs credits the user can see and object to.
 
 **The taxonomy is open.** Never hardcode the five starting types' names or
 axis values in reasoning — read them from `preferences.json`. New types are
@@ -121,7 +122,7 @@ minted when a real task doesn't fit, not guessed in advance.
 
 One `curl`, classified by exit code + a header dump — full method and all
 five message variants in
-[the offline-detection asset](assets/006-offline-detection.md);
+[the offline-detection asset](assets/offline-detection.md);
 this section is the short form.
 
 - Probe target: the **real API host**, not a generic domain — a generic
@@ -131,8 +132,8 @@ this section is the short form.
   endpoint from `hardware.json.ollamaEndpoint`, don't hardcode the host).
 - **Read the cached verdict first.** `preferences.json.network.{cloud,local}`
   — `{reachable, signal, lastProbed}`. Only probe live if `lastProbed` is
-  older than 60 seconds. This satisfies map invariant 6 (no decision
-  *requires* a network call).
+  older than 60 seconds. This upholds the design rule that no routing
+  decision *requires* a network call.
 - Classify by exit code and, for HTTPS targets, the `-D` header dump's
   `X-Squid-Error` value:
   - reached the real remote (any status) → **online**
@@ -154,8 +155,8 @@ this section is the short form.
   confirm):
   1. online → no message, route normally.
   2. blocked → *"`<host>` is not on the container allowlist — falling back to
-     local. `curl -s http://firewall:8099` shows recent denials; ask Bas to
-     allow it from the host."*
+     local. `curl -s http://firewall:8099` shows recent denials; ask the user
+     to allow it from the host."*
   3. offline → *"Cloud unreachable (signal: `<rc/X-Squid-Error>`) — routing
      locally."* No fix asserted — this skill can't tell bug from genuine
      offline.
@@ -192,8 +193,8 @@ tiers; this skill only reads that data, it doesn't re-derive VRAM fit.
 **Set `num_ctx` per request, never rely on ollama's default.** Ollama
 defaults context length **from VRAM** (`<24 GiB usable → 4096`), so every
 local call is silently capped at 4k unless `num_ctx` is set explicitly to
-input + expected output tokens for *this* task (ticket 016's finding — kept
-regardless of that ticket's KV-cache decision).
+input + expected output tokens for *this* task. This holds regardless of
+whether KV-cache quantisation is enabled on the host.
 
 ## Cost computation
 
@@ -221,7 +222,8 @@ it:**
    estimate. Every other entitled model has no long-context tier at all —
    don't invent one.
 3. **Data-residency surcharge** — genuinely unresolved whether it applies to
-   Bas (see `dataResidencySurcharge.activeForBas: "unknown"`). Don't bake in
+   this account (see `dataResidencySurcharge.activeForUser: "unknown"`).
+   Don't bake in
    the +10%; if you want to convey the uncertainty, say the estimate carries
    roughly a ±10% band, don't present a single number as more precise than
    it is.
@@ -245,7 +247,7 @@ no "slow local model" case left for a gate to guard against.
   ("~13% of your month"), never a raw credit count — raw numbers don't carry
   meaning without the denominator.
 - **Inform-only — it never blocks.** State the estimate and proceed; consent
-  is about Bas knowing, not gating the call.
+  is about the user knowing, not gating the call.
 - **Re-ask when a new estimate greatly exceeds the consented level** — the
   gap this closes: approving Opus once for a 20-credit `code-agentic` task
   must not silently cover a 250-credit one under the same type/consent pair.
@@ -255,9 +257,9 @@ no "slow local model" case left for a gate to guard against.
 
 ## Escalation
 
-**Only on Bas's explicit word. Never automatic.**
+**Only on the user's explicit word. Never automatic.**
 
-- When Bas says a result was inadequate, step up to a better model for that
+- When the user says a result was inadequate, step up to a better model for that
   type and record the failure against the model that failed
   (`preferences.json`'s per-type `failureCounters`, keyed by model).
 - **A pattern of two-to-three failures for the same model shifts that type's
@@ -265,7 +267,7 @@ no "slow local model" case left for a gate to guard against.
   threshold each time.
 - Never infer failure yourself from output length, tone, or a hunch — that's
   exactly the judgment call LLMs are worst at, and it would escalate on fine
-  answers and accept bad ones with equal confidence. Bas's word is the only
+  answers and accept bad ones with equal confidence. The user's word is the only
   trigger.
 
 ## Actuation — opencode only
@@ -275,7 +277,7 @@ A prose skill cannot address the running opencode server directly by shell
 **plugin-provided tool** solves this cleanly, because the tool executes
 *inside* the opencode process and gets `client`/`sessionID` for free.
 
-**Corrected from the ticket's original plan:** the ticket specified "a
+**Corrected from this skill's original design:** the design specified "a
 `/pick-model` slash command via `PluginInput`'s `client`/`serverUrl`." Once
 the actual SDK types were read (building this skill), that turned out to be
 inconsistent — slash-command registration
@@ -297,7 +299,7 @@ handoff to get wrong.
    `POST /api/session/{sessionID}/model` — because the switch endpoint
    itself returns success and silently stores a bogus model/provider
    otherwise, per
-   [the model-switching asset](assets/002-opencode-model-switching.md).
+   [the model-switching asset](assets/opencode-model-switching.md).
    If validation fails, it reports that plainly instead of switching.
    **Implementation note, verified live rather than assumed:** the plugin's
    `client` (`PluginInput.client`) is the v1 SDK client, which has no
@@ -326,10 +328,10 @@ handoff to get wrong.
 
 Set `OPENCODE_DISABLE_MODELS_FETCH=1` or pin `OPENCODE_MODELS_PATH` to a
 local copy (found in
-[the model-switching asset](assets/002-opencode-model-switching.md))
+[the model-switching asset](assets/opencode-model-switching.md))
 so that even the *catalogue lookup* never makes a network call — otherwise
-map invariant 6 ("no decision requires a network call") would have a leak
-one layer below the routing decision itself. This is environment
+the "no decision requires a network call" rule would have a leak one layer
+below the routing decision itself. This is environment
 configuration, not something this skill sets per-call; note it once and move
 on if it's not already set.
 

@@ -1,7 +1,7 @@
 # Offline detection — the cloud/local branch selector probe
 
 Resolved **2026-08-24** for
-[Decide how the skills detect that cloud is unreachable](006-offline-detection.md).
+[Decide how the skills detect that cloud is unreachable](offline-detection.md).
 Measured live against this container's real firewall (not assumed) — see
 commands below, all reproducible with `curl`.
 
@@ -102,7 +102,8 @@ allowlist (`/policy/allowlist.acl`), not in any checked-in
 runtime via `fw allow host.docker.internal [ttl]`, the same mechanism as any
 cloud domain.
 
-**Consequence, flagged for Bas (not this map's decision to make):** if that
+**Consequence, flagged for the user (not this document's decision to make):**
+if that
 was a TTL-scoped allow rather than a permanent one, it will silently expire
 and the exact same probe will then report `ERR_FIREWALL_BLOCKED` for
 *ollama* — which, read carelessly, looks like "local is down" when the real
@@ -117,15 +118,15 @@ a different consequence when unreachable:
 
 - cloud unreachable → local becomes the only option (open the local gate).
 - local unreachable → cloud is the only option; if cloud is *also*
-  unreachable, that's the genuine both-down case the ticket asked for a clear
-  error on — surface it as such, don't let the router silently pick a `null`
+  unreachable, that's the genuine both-down case that needs a clear error —
+  surface it as such, don't let the router silently pick a `null`
   model.
 
-## Caching: keep the probe out of the decision path (map invariant 6)
+## Caching: keep the probe out of the decision path
 
 Store the verdict in `preferences.json` (per
 the data schema — this is exactly the kind of thing
-that "changes continuously as Bas works" and is owned by `pick-model`), one
+that "changes continuously as the user works" and is owned by `pick-model`), one
 block per target:
 
 ```json
@@ -145,7 +146,7 @@ block per target:
   a minute during rapid back-to-back task routing, while still being long
   enough that it won't re-probe on every single `pick-model` call in a tight
   loop. A **blocked** verdict gets the same 60s TTL rather than a longer one,
-  on purpose — so that once Bas fixes an allowlist gap from the host, the very
+  on purpose — so that once the user fixes an allowlist gap from the host, the very
   next routing decision within a minute self-heals without restarting a
   session.
 - No separate "offline" cache entry is needed for invariant 7
@@ -165,22 +166,21 @@ block per target:
 3. **offline** (unclassified network failure, including genuine no-route) →
    route to local, message is informational only: *"Cloud unreachable
    (signal: `<raw rc/X-Squid-Error>`) — routing locally."* No fix instructions
-   are asserted, since the skill can't tell bug from genuine offline; if Bas
-   recognizes the raw signal as the stale-image pattern from CLAUDE.md, that's
-   his call to rebuild.
+   are asserted, since the skill can't tell bug from genuine offline; if the
+   user recognizes the raw signal as the stale-image pattern from CLAUDE.md,
+   that's their call to rebuild.
 4. **proxy itself unreachable** → loud warning distinct from both of the
    above: *"Container network layer unreachable — this affects everything, not
    just this task. Check the firewall container."*
-5. **both cloud and local unreachable** → hard stop with a clear error, per
-   the ticket's own requirement — never silently pick a `null` model or guess.
+5. **both cloud and local unreachable** → hard stop with a clear error —
+   never silently pick a `null` model or guess.
 
-## Consequence for the build tickets
+## Consequence for the skill
 
-Write the pick-model skill implements
-this probe (plain `curl`+shell, so it degrades gracefully across opencode,
-Claude Code and Copilot CLI per map invariant 4 — no dependency on a running
-opencode server) and the five message variants above. It should also set
-`OPENCODE_DISABLE_MODELS_FETCH`/pin `OPENCODE_MODELS_PATH` (found by
-[ticket 002](002-opencode-model-switching.md)) so the *model catalogue* path
-never makes a network call either — that's a separate invariant-6 leak this
-ticket surfaced but doesn't own fixing.
+`pick-model` implements this probe (plain `curl`+shell, so it degrades
+gracefully across opencode, Claude Code and Copilot CLI — no dependency on a
+running opencode server) and the five message variants above. It should also
+set `OPENCODE_DISABLE_MODELS_FETCH`/pin `OPENCODE_MODELS_PATH` (see
+[the model-switching asset](opencode-model-switching.md)) so the *model
+catalogue* path never makes a network call either — otherwise the
+"no decision requires a network call" rule leaks one layer down.

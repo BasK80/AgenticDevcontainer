@@ -69,7 +69,7 @@ This file is the checklist.
    rule and the "don't add a redundant same-class slot" rule live).
 7. **On refresh** (explicitly asked, or data looks stale): re-scrape the live
    ollama.com catalogue and re-derive architecture facts from
-   `/api/show`/manifests — never from memory (map invariant 5). See
+   `/api/show`/manifests — never from memory. See
    REFERENCE.md § Refreshing.
 
 ## Packaging

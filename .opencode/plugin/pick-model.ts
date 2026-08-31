@@ -2,11 +2,11 @@
 //
 // Why a plugin at all: a prose skill running shell commands cannot address
 // the running opencode server (no discoverable port, no lock file, no
-// OPENCODE_SERVER_URL — see .agents/skills/pick-model/assets/002-opencode-model-switching.md).
+// OPENCODE_SERVER_URL — see .agents/skills/pick-model/assets/opencode-model-switching.md).
 // A plugin gets `client` for free via PluginInput, so the actual switch has
 // to live here.
 //
-// Why a tool, not a slash command: the ticket that specified this
+// Why a tool, not a slash command: the original design for this
 // ("Registers a /pick-model slash command via PluginInput's client/serverUrl")
 // turned out to be inconsistent with the real API surface once the actual
 // SDK types were read — slash-command registration
@@ -21,8 +21,8 @@
 // Why validation reads `client.config.providers()`, NOT `GET /api/model` —
 // verified live against opencode 1.18.21 with real github-copilot credit
 // spend, not assumed from docs or the .d.ts files:
-//   - `GET /api/model` (the endpoint ticket 002's research and this ticket's
-//     original plan both pointed at) reliably omits `github-copilot`
+//   - `GET /api/model` (the endpoint both the model-switching research and
+//     the original plan pointed at) reliably omits `github-copilot`
 //     entirely on this version — confirmed on multiple freshly-started
 //     servers, before AND after a real, successful completion through
 //     `github-copilot/gpt-5.6-luna` on that exact same server process. Only
@@ -38,7 +38,7 @@
 //   - Validating against the wrong source is worse than not validating at
 //     all: it silently blocks every legitimate github-copilot switch while
 //     looking like it "did the right thing." A dedicated round-trip test
-//     with real credits (see ticket 011's resolution) is what caught this —
+//     with real credits is what caught this —
 //     the earlier, ollama-only test could not have, because ollama happens
 //     to appear correctly in both endpoints.
 //
@@ -67,7 +67,7 @@ export const PickModelPlugin = async ({ client }) => {
           "provider/model — this tool only performs the mechanical switch " +
           "and validates the model actually exists first (the raw " +
           "session-model API returns 204 and stores a bogus model/provider " +
-          "silently, per ticket 002's finding).",
+          "silently — see assets/opencode-model-switching.md).",
         args: {
           providerID: tool.schema
             .string()

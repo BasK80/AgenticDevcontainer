@@ -28,7 +28,7 @@ justified by credits.
 ## The five axes
 
 Axes are the skill's **internal reasoning scaffold, inferred and displayed —
-never asked**. Bas answers nothing in the common case.
+never asked**. The user answers nothing in the common case.
 
 **Selection axes** — what capability the task requires:
 
@@ -55,7 +55,7 @@ both be "moderate reasoning, few tool calls", but one is free to fix when wrong.
 Without stakes the router can never justify the expensive model.
 
 **No latency axis.** "I'm waiting on this" versus "run it while I get coffee" is
-not derivable from the task text; Bas says "fast" when he cares.
+not derivable from the task text; the user says "fast" when they care.
 
 ## The five starting types
 
@@ -69,8 +69,8 @@ A task type is a **cached bundle of axis values**.
 | `doc-review` — consistency across many files | hard | few | medium | **large** | small |
 | `code-agentic` — multi-file edits, refactors | hard | **many** | high | large | large |
 
-**The taxonomy is open**: new types are minted as Bas meets work that does not
-fit, and appended to the prefs file. No skill prose changes (map invariant 7).
+**The taxonomy is open**: new types are minted as the user meets work that does not
+fit, and appended to the prefs file. No skill prose changes.
 
 Deliberate choices to preserve:
 
@@ -112,7 +112,7 @@ correction.
 
 **Tasks spanning types** (editing docs *and* refactoring code in one session):
 **the more demanding type wins.** Under-provisioning costs a retry;
-over-provisioning costs credits Bas can see.
+over-provisioning costs credits the user can see.
 
 ## Consent gate
 
@@ -124,7 +124,7 @@ job. The replacement protects **credits**.
   answer once, never asked again for that type.
 - **Threshold expressed as a percentage of monthly allowance**, not raw credits —
   "~13% of your month" means something, "250 credits" does not.
-- **Inform-only. It never blocks.** After a yes/no it proceeds; Bas decides
+- **Inform-only. It never blocks.** After a yes/no it proceeds; the user decides
   whether a refactor is worth 13% of the month.
 - **Re-asks when an estimate greatly exceeds the consented level.** Per-type
   consent alone has a hole: approving Opus for `code-agentic` on a 20-credit
@@ -132,18 +132,18 @@ job. The replacement protects **credits**.
   12× the spend.
 - **Allowance is a cached fact with a refresh path**, like the hardware profile —
   it changes, but rarely. See
-  [seat type and credit balance](015-seat-type-and-credit-balance.md).
+  [seat type and credit balance](credit-balance-readability.md).
 
 ## Escalation
 
-**Only on Bas's word. Never automatic.**
+**Only on the user's word. Never automatic.**
 
-- Bas says the output was inadequate; the skill steps up to a better model and
+- The user says the output was inadequate; the skill steps up to a better model and
   **records the failure against that task type**.
 - **A pattern of two-to-three failures shifts the type's floor** — one does not.
 - Automatic escalation was ruled out firmly: it requires the model to judge its own
   failure, which is what LLMs are worst at. It would escalate on fine answers,
-  accept bad ones, and spend credits either way. Failure detection is Bas's
+  accept bad ones, and spend credits either way. Failure detection is the user's
   judgement; the skill's job is to make acting on it one word.
 
 Note the double-pay trap the charting session worried about has **largely
@@ -152,7 +152,8 @@ cloud call anyway. A failed `gpt-5.6-luna` attempt costs ~3 credits and seconds,
 so escalation overhead is ~10%, not 100%. "Try cheap, escalate if needed" is now a
 good strategy where it was a bad one.
 
-But the real cost of a failed cheap attempt is **Bas's time reading bad output**,
+But the real cost of a failed cheap attempt is **the user's time reading bad
+output**,
 not the credits. So this is *not* "always try cheap first" — the type's default
 encodes what is actually needed, and cheap-first applies only where the type says
 cheap suffices.
@@ -161,17 +162,16 @@ cheap suffices.
 
 Every default carries a provenance marker. The five starting types ship as
 **`assumed`** — reasoned priors, not measurements — and `pick-model` says so, so
-Bas knows which recommendations to distrust.
+the user knows which recommendations to distrust.
 
 Converting `assumed` → `measured` is the job of the **benchmark skill**, which is
-**out of scope for this map** and gets its own effort. The schema must reserve
+**out of scope here** and needs its own effort. The schema must reserve
 somewhere to store measured speed and quality per `(model, task type)` so the
-benchmark can write into it and `pick-model` can read it — folded into
-the data schema ticket.
+benchmark can write into it and `pick-model` can read it.
 
 ## What a task-type record must hold
 
-For the data schema ticket to make concrete:
+What the data schema must make concrete:
 
 - type name and a few **exemplar task descriptions** (the matching key)
 - the five **axis values**

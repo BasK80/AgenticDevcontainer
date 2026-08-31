@@ -2,7 +2,7 @@
 
 Tested **2026-08-24** against opencode **1.18.21** (SDK 1.18.18), by running
 `opencode serve --port 47821` locally and exercising the HTTP API. Asset of
-[Determine whether opencode can switch its own model mid-session](002-opencode-model-switching.md).
+[Determine whether opencode can switch its own model mid-session](opencode-model-switching.md).
 
 No model prompts were sent, so **no credits were spent**. The probe session was
 deleted and the server stopped afterwards.
@@ -98,21 +98,22 @@ guesswork. Recorded against
 Decide how skills are packaged, which owns
 the packaging decision.
 
-## Question 2 from the ticket, answered differently than asked
+## A second question, answered differently than asked
 
-The ticket asked whether writing `opencode.json` takes effect on the next message
-or only in a fresh session. **The question is now moot** and I did not test it:
+The original question was whether writing `opencode.json` takes effect on the
+next message or only in a fresh session. **That question is moot** and was not
+tested:
 config is patchable via `PATCH /config`, and the model is settable directly per
 session, so file-editing is the wrong mechanism either way.
 
 Worth noting for provider wiring:
-`~/.config/opencode/opencode.json` is still `{"provider": {}}` even after Bas's
+`~/.config/opencode/opencode.json` is still `{"provider": {}}` even after a
 successful Copilot login — **the credential lives in `auth.json` and providers are
 discovered from it**, so a provider stanza is not required for Copilot to work.
 That materially reduces the `llm-switch.sh` collision risk, since there may be
 nothing in `provider` worth protecting.
 
-## Incidental findings for other tickets
+## Incidental findings
 
 Extracted from the binary's env-var table (`strings`) and the OpenAPI spec:
 
@@ -125,7 +126,7 @@ Extracted from the binary's env-var table (`strings`) and the OpenAPI spec:
 - **`OPENCODE_DISABLE_MODELS_FETCH`, `OPENCODE_MODELS_PATH`,
   `OPENCODE_MODELS_URL`** — control over where the model catalogue comes from,
   including a local path. Directly useful for
-  [offline detection](006-offline-detection.md) and the offline-first
+  [offline detection](offline-detection.md) and the offline-first
   invariant: the catalogue can be pinned locally rather than fetched.
 - **The server is unsecured by default** — it warns
   `OPENCODE_SERVER_PASSWORD is not set; server is unsecured`. Anything that starts

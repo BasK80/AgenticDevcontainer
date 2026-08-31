@@ -45,13 +45,13 @@ This file is the checklist.
   convention to remember.
 - **Never silently treat a firewall allowlist block as "offline."** The two
   look identical from inside a naive probe; REFERENCE.md § Offline detection
-  gives the exact signal that tells them apart. Getting this wrong sends Bas
-  down the wrong fix (there's nothing to "wait out" on a blocked domain).
+  gives the exact signal that tells them apart. Getting this wrong sends the
+  user down the wrong fix (there's nothing to "wait out" on a blocked domain).
 - **Never block on consent.** The credit gate informs; it does not gate
   execution. Ask once per type, remember the answer, re-ask only when an
-  estimate blows past what was consented to — never make Bas answer to
-  proceed at all.
-- **Never escalate to a better model automatically.** Only Bas's explicit
+  estimate blows past what was consented to — never require an answer in
+  order to proceed at all.
+- **Never escalate to a better model automatically.** Only the user's explicit
   "that wasn't good enough" triggers a step-up — see REFERENCE.md §
   Escalation. Record the failure either way.
 - **Never write to `models.json`'s `ollama/*` entries or
@@ -88,8 +88,8 @@ This file is the checklist.
 6. **Run the consent gate** if the estimate is expensive relative to the
    cached monthly allowance and this type hasn't already consented at this
    level. Inform, never block. See REFERENCE.md § Consent gate.
-7. **Explain the choice** — the reasoning is the product, written so Bas can
-   overrule it, not an oracle's verdict.
+7. **Explain the choice** — the reasoning is the product, written so the user
+   can overrule it, not an oracle's verdict.
 8. **State provenance** (`assumed` vs `measured`) for the type's default and
    say so plainly.
 9. **Actuate — opencode only.** Call the `pickmodel_switch` tool directly
