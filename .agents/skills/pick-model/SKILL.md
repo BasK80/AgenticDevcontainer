@@ -57,9 +57,9 @@ This file is the checklist.
 - **Never write to `models.json`'s `ollama/*` entries or
   `hardware.json`'s `hardware`/`ollamaEndpoint` keys.** Those belong to
   `ollama-curate`. This skill owns `preferences.json` entirely, plus
-  `hardware.json.creditAllowance` and `models.json`'s `github-copilot/*`
-  entries and narrow ollama tier corrections (see REFERENCE.md § File
-  ownership).
+  `hardware.json.creditAllowance` and `models.json`'s `github-copilot/*` and
+  `anthropic/*` entries and narrow ollama tier corrections (see REFERENCE.md
+  § File ownership).
 
 ## Checklist
 
@@ -79,20 +79,28 @@ This file is the checklist.
    branch: cloud-default, or local-only-when-offline. See REFERENCE.md §
    Offline detection for the exact signal classification — a firewall block
    is not "offline" and must never be phrased as one.
-5. **Pick the model.** Online: cheapest model on the matched type's axes,
-   resolving cost through `costOverride` and the `githubCopilotPricingCorrections`
-   block when applicable (REFERENCE.md § Cost computation). Offline: the best
-   local model that fits, per `models.json`'s ollama tier data — or say
+5. **Pick the model, filtered to what this harness can reach.** See
+   REFERENCE.md § Harness reachability first — a `github-copilot/*` or
+   `ollama/*` model is not a real option inside Claude Code, and an
+   `anthropic/*` model is not a real option inside Copilot CLI, regardless of
+   cost. Within the reachable set: Online — cheapest model on the matched
+   type's axes, resolving cost through `costOverride`,
+   `githubCopilotPricingCorrections`, or `anthropicPricingMechanics` as the
+   model's provider requires (REFERENCE.md § Cost computation). Offline: the
+   best local model that fits, per `models.json`'s ollama tier data — or say
    plainly that this task type has no offline coverage, per its
    `offline.modelKey: null` note, if that's what the data says.
 6. **Run the consent gate** if the estimated cost exceeds ~$1.00, or reaches
    roughly 3× the level this type already consented to. Express it as money
-   first, credits second, with the remaining balance alongside. Inform, never
-   block. See REFERENCE.md § Consent gate.
+   first, credits second (Copilot only — `anthropic/*` has no credit unit, so
+   state money alone there), with the remaining balance alongside when one
+   was fetched. Inform, never block. See REFERENCE.md § Consent gate.
    **Then check pace:** if the fraction of allowance remaining is below the
    fraction of the period remaining, warn and start proposing cheaper models
    — see REFERENCE.md § Pace warning. Skip both the balance and the pace
-   check for non-Copilot providers.
+   check for non-Copilot providers — for `anthropic/*` this is not a gap to
+   fill later, there is no fetchable balance to check pace against (see
+   REFERENCE.md § Credit allowance and balance's Anthropic subsection).
 7. **Explain the choice** — the reasoning is the product, written so the user
    can overrule it, not an oracle's verdict.
 8. **State provenance** (`assumed` vs `measured`) for the type's default and

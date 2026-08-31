@@ -42,9 +42,10 @@ every default marked `"provenance": "assumed"`, and continue.
   counters. `ollama-curate` never reads or writes it.
 - `hardware.json` — this skill owns only the `creditAllowance` key. Never
   touch `hardware`/`ollamaEndpoint` — those belong to `ollama-curate`.
-- `models.json` — this skill owns every `github-copilot/*` entry and the
-  `githubCopilotPricingCorrections` top-level block. It may write *narrow*
-  tier corrections into an `ollama/*` entry's `maxFullyResidentContext` after
+- `models.json` — this skill owns every `github-copilot/*` and `anthropic/*`
+  entry, plus the `githubCopilotPricingCorrections` and
+  `anthropicPricingMechanics` top-level blocks. It may write *narrow* tier
+  corrections into an `ollama/*` entry's `maxFullyResidentContext` after
   reading a real `/api/ps` result post-run, but never re-derives a full
   `fitFormula` from scratch — that's `ollama-curate`'s refresh job.
 - **Write convention:** read-modify-write, merge only the keys you own —
@@ -56,6 +57,10 @@ every default marked `"provenance": "assumed"`, and continue.
   visible, never silent.
 
 ## Credit allowance and balance
+
+This whole section, as written below, is **GitHub Copilot-specific** — the
+fetch mechanism it describes only exists for that provider. See "Anthropic —
+no fetchable balance" at the end of this section for the `anthropic/*` path.
 
 **Fetched, never asked.** A single call returns both the allowance and the
 live remaining balance:
@@ -116,6 +121,29 @@ billing routes (`/users/{u}/settings/billing/usage`,
 `/enterprises/{e}/settings/billing/usage`) returned **404** on that tenant, and
 pool-level billing endpoints require administrator or billing-manager rights,
 so don't reach for either.
+
+### Anthropic — no fetchable balance
+
+**Never attempt a live fetch for an `anthropic/*` model.** Per
+`models.json`'s `anthropicPricingMechanics.balanceNotFetchable`, every
+Anthropic usage/cost API requires an org-admin or primary-owner credential —
+there is no low-privilege analogue to Copilot's `copilot_internal/user`.
+Degrade straight to **cost-only**: state the estimate in money, with no
+balance, no percentage, no parenthetical credit count (Anthropic has no
+"credits" unit the way GitHub AI Credits does — inventing one would be
+actively misleading).
+
+If the user states a figure themselves (e.g. "$118 of $150"), treat it as
+**manual/self-reported** — usable for a session's conversation, never cached
+under `hardware.json.creditAllowance` with `source: "fetched"`, and never
+re-derived or refreshed by this skill on their behalf. It is very likely the
+usage-credits *overage* layer rather than the (unpriced) base rolling-window
+pool — see `anthropicPricingMechanics.twoLayeredQuota` — so don't present it
+as "your monthly allowance" without that caveat if it comes up.
+
+The one channel the user can check themselves: `claude.ai` → Settings →
+Usage. Name it if asked where to look; do not attempt to reach it
+programmatically.
 
 ## Pace warning
 
@@ -219,21 +247,54 @@ execute the probe is below.
   purpose — a fixed allowlist gap should self-heal within a minute without a
   session restart.
 
+## Harness reachability
+
+**A model is only a candidate if the harness running this skill can actually
+reach it.** The catalogue can hold entries for providers this harness has no
+way to switch to at all — a Claude Code session can never become
+`github-copilot` or `ollama`, and a Copilot CLI session can never become
+`anthropic`. Filter *before* ranking by cost, not after, or the skill ends up
+recommending switches it has no way to carry out:
+
+| Current harness | Reachable providers | Detection |
+| --- | --- | --- |
+| Claude Code | `anthropic` only | `$CLAUDECODE == "1"` (verified live — this env var is set inside a real Claude Code session) |
+| GitHub Copilot CLI | `github-copilot` only | absence of `$CLAUDECODE`; no live-verified positive signal found yet — treat as the default when neither Claude Code's nor opencode's signal fires, and correct this row the first time it's actually checked from inside Copilot CLI |
+| opencode | `ollama`, `github-copilot`, and `anthropic` if `llm-switch.sh`'s `use-anthropic`/`use-anthropic-key` has been run for it | no live-verified positive signal found yet — same caveat as the Copilot CLI row |
+
+`ollama` is never reachable from Claude Code or Copilot CLI regardless of
+network state — this is a harness capability gap, not an offline-detection
+case (no ollama-to-Claude-Code proxy shim exists, and building one is out of
+scope for this skill).
+
+**Known loose edge:** whether an opencode session's `anthropic` route is
+actually reachable depends on which provider `llm-switch.sh` last switched
+it to (`use-anthropic`/`use-anthropic-key` vs. `use-foundry`/default) — read
+`llm-mode`'s live state rather than assuming either way if this matters for
+a specific session.
+
 ## Routing policy
 
 **Cloud is the default for every task type.** Pick the cheapest cloud model
-that will succeed on the matched type's axes. Take the local branch only
-when § Offline detection says cloud is unreachable — local is justified by
-*offline capability*, not by credits (the credit-cost asset found the
-credit lever is *which* cloud model, not local-vs-cloud — routing doc work
-locally saves a few credits; routing a refactor to a cheaper cloud model
-saves dozens).
+that will succeed on the matched type's axes, **among the providers §
+Harness reachability says this session can actually use.** Take the local
+branch only when § Offline detection says cloud is unreachable — local is
+justified by *offline capability*, not by credits (the credit-cost asset
+found the credit lever is *which* cloud model, not local-vs-cloud — routing
+doc work locally saves a few credits; routing a refactor to a cheaper cloud
+model saves dozens).
 
-**Online model choice:** among models whose declared capabilities cover the
+**Online model choice:** among models whose `provider` is reachable from
+this harness, and whose declared capabilities cover the
 matched type's axes (tool-calling for any agentic depth above `none`,
 sufficient context for the input size), pick the cheapest by
 `costPerMTokUSD` — resolved through § Cost computation below, never the raw
-field directly.
+field directly. **A type's stored `defaults.online.modelKey` is a hint, not
+a mandate:** if that model's provider isn't reachable from the current
+harness (e.g. a `github-copilot/*` default read while running inside Claude
+Code), ignore it for this session and pick fresh from the reachable subset
+instead — do not silently fall back to an unreachable model, and do not
+treat the mismatch as an error.
 
 **Offline model choice:** read the matched type's `defaults.offline.modelKey`
 from `preferences.json`. If it's `null`, **say plainly this task type has no
@@ -279,6 +340,17 @@ it:**
    roughly a ±10% band, don't present a single number as more precise than
    it is.
 
+**For `anthropic/*` models, read `anthropicPricingMechanics` instead — it is
+not a drop-in replacement for the three corrections above, several are
+absent by design:** no long-context tier exists at all (don't double
+anything past a token threshold — see `noLongContextTier`), no `-fast`
+variant is actuable from Claude Code today (don't invent a costOverride for
+one), and the same unresolved ±10% data-residency band applies via
+`dataResidencySurcharge`. The one thing to actively flag: per
+`twoLayeredQuota`, ranking by `costPerMTokUSD` is a best-available heuristic
+until the user is confirmed to be in the usage-credits overage layer — say
+so if asked how confident the estimate is, don't present it as exact.
+
 **Estimate tokens** from the matched type's `inputSize`/`outputSize` axis
 values (map them to rough token counts consistent with how the type was
 scoped — e.g. "large" input for `doc-review` means the actual files in
@@ -300,11 +372,15 @@ no "slow local model" case left for a gate to guard against.
 - **Express the cost as money first, credits second** — "~$1.50 (≈150
   credits)". Money is the quantity that means something without a
   denominator; the credit count is the unit the API reports and belongs in
-  the parenthesis, not in front.
+  the parenthesis, not in front. **This "credits" parenthetical is
+  Copilot-specific** — for `anthropic/*` models there is no credit unit at
+  all, so state money alone ("~$1.50"), never invent an equivalent.
 - **Always state the remaining balance in the gate** when the model is
   Copilot-routed and a balance was fetched — "~$32.91 left this period,
   resets 1 Sep". If no balance is available, show the cost alone rather than
-  guessing.
+  guessing. **For `anthropic/*` models, never state a balance** — see §
+  Credit allowance and balance's "Anthropic — no fetchable balance": there is
+  nothing to fetch, so the gate always shows cost alone there.
 - **Inform-only — it never blocks.** State the estimate and proceed; consent
   is about the user knowing, not gating the call. The one exception is the
   pace warning (see § Pace warning), where the skill starts proposing cheaper

@@ -29,6 +29,44 @@
       "source": "https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/github-copilot-with-data-residency"
     }
   },
+  "anthropicPricingMechanics": {
+    "note": "Facts sourced from platform.claude.com/docs, not from opencode's model metadata — that metadata is github-copilot-specific and says nothing about a direct Anthropic route. Read before trusting any anthropic/* entry's costPerMTokUSD, and before importing any githubCopilotPricingCorrections logic onto it — several of those corrections do not carry over.",
+    "lastVerified": "2026-08-31",
+    "noLongContextTier": {
+      "rule": "Current Claude models (4.6+) bill the full context window — up to 1M tokens where enabled — at the standard per-token rate; a 900k-token request costs the same per token as a 9k-token request. Do NOT port githubCopilotPricingCorrections.longContextTier's doubling logic onto any anthropic/* entry — this is a documented, direct contrast with Copilot, not a gap in this catalogue.",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing"
+    },
+    "fastModeNotActuable": {
+      "rule": "Fast mode (2x cost, e.g. Opus 5 $10/$50) is documented for Opus 5 and Opus 4.8 only, but requires a beta header on direct Messages API calls and is gated behind an account-manager-granted waitlist. No evidence it is reachable from inside Claude Code (no speed control documented for /model, --model, or $ANTHROPIC_MODEL). Do not add a '-fast' sibling entry the way github-copilot/claude-opus-4.8-fast exists, unless the user confirms they actually have access.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/fast-mode"
+    },
+    "dataResidencySurcharge": {
+      "rule": "Setting inference_geo:'us' applies a 1.1x multiplier on every token category for Claude 4.6+ models; global routing (the default) is standard price.",
+      "activeForUser": "unknown",
+      "activeForUserNote": "Console-admin-only org setting; mirrors the identical unresolved Copilot data-residency question (see githubCopilotPricingCorrections.dataResidencySurcharge). Treat as an unresolved ±10% band, do not bake it into a costOverride.",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing#data-residency-pricing"
+    },
+    "promptCaching": {
+      "rule": "Universal across every model: cache read (hit) is 0.1x base input (already reflected in each entry's costPerMTokUSD.cacheRead below); a 5-minute cache write is 1.25x base input (already reflected in costPerMTokUSD.cacheWrite below). A 1-hour cache write is 2x base input but has no field of its own here — same simplification the schema already makes for Copilot's cache-write field."
+    },
+    "reasoningBilledAsOutput": {
+      "rule": "Thinking/reasoning tokens are billed as output tokens at the model's standard output rate, even when the thinking text isn't returned to the caller. The effort parameter (low/medium/high/xhigh/max) changes how many tokens get spent reasoning, never the per-token rate.",
+      "source": "https://platform.claude.com/docs/en/build-with-claude/thinking"
+    },
+    "balanceNotFetchable": {
+      "rule": "Unlike github-copilot's undocumented copilot_internal/user route, no low-privilege endpoint exists for Anthropic. Every usage/cost API (Admin API, Claude Code Analytics API, Enterprise Analytics API) requires an org-admin or primary-owner credential — a regular member/seat has no API path at all to their own balance. pick-model must never attempt a live fetch for an anthropic/* model: degrade straight to cost-only, and treat any figure the user volunteers (e.g. '$118 of $150') as manual/self-reported, never cache it with source:'fetched'.",
+      "oneSelfServeChannel": "claude.ai → Settings → Usage shows progress bars for the rolling 5h/weekly limits and, separately, usage-credits consumption — no API backs this page.",
+      "source": "https://platform.claude.com/docs/en/manage-claude/analytics-api"
+    },
+    "twoLayeredQuota": {
+      "rule": "A base rolling-window pool (Anthropic states model choice 'materially affects consumption' — Opus draws meaningfully more than Sonnet/Haiku — but publishes no per-model weighting) plus an optional usage-credits overage layer that activates only once the base pool is exhausted, billed at the costPerMTokUSD rates below, with a hard stop and a monthly reset.",
+      "rankingCaveat": "Ranking anthropic/* models by costPerMTokUSD is exactly correct only once the user is in the overage layer — before that, the base pool's real per-model draw rate is unpublished. Use costPerMTokUSD as the best available heuristic regardless; there is no better signal to rank against.",
+      "source": "https://support.claude.com/en/articles/12005970-manage-usage-credits-for-team-and-seat-based-enterprise-plans"
+    },
+    "omittedModels": {
+      "note": "Claude Fable 5 and Claude Mythos 5 ($10/$50, the same rate as Opus fast mode) are in Anthropic's published pricing table but deliberately left out of the models list below — Mythos is explicitly 'limited availability' and neither model's entitlement was checked for the account this seed was captured from. Add them only once confirmed selectable in Claude Code's /model list."
+    }
+  },
   "ollamaKvCacheAssumptions": {
     "flashAttention": "unknown",
     "kvCacheType": "f16",
@@ -193,6 +231,52 @@
       "measuredQuality": {},
       "pricingSource": "docs.github.com, verified against opencode metadata",
       "lastVerified": "2026-08-24"
+    },
+    "anthropic/claude-sonnet-5": {
+      "provider": "anthropic",
+      "id": "claude-sonnet-5",
+      "contextLimit": 200000,
+      "contextLimitNote": "Standard default; Anthropic docs describe a 1M-token window for 4.6+ models where enabled, at no rate surcharge (see anthropicPricingMechanics.noLongContextTier). Whether this org has that beta enabled was not checked, so this entry predicts against the conservative standard window.",
+      "maxOutput": 64000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5 },
+      "longContextTier": null,
+      "costOverride": null,
+      "measuredQuality": {},
+      "switchHint": "Claude Code's /model command selects this by the friendly alias 'sonnet', not this literal id. Model switching for Claude Code is out of scope for this skill (advice only) — actuation is opencode-only, see § Actuation.",
+      "pricingSource": "platform.claude.com/docs — cross-checked exactly against github-copilot/claude-sonnet-5's costPerMTokUSD",
+      "lastVerified": "2026-08-31"
+    },
+    "anthropic/claude-opus-5": {
+      "provider": "anthropic",
+      "id": "claude-opus-5",
+      "contextLimit": 200000,
+      "contextLimitNote": "Standard default; see anthropic/claude-sonnet-5's contextLimitNote — same caveat applies.",
+      "maxOutput": 64000,
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25 },
+      "longContextTier": null,
+      "costOverride": null,
+      "measuredQuality": {},
+      "switchHint": "Claude Code's /model command selects this by the friendly alias 'opus', not this literal id. Model switching for Claude Code is out of scope for this skill (advice only) — actuation is opencode-only, see § Actuation.",
+      "pricingSource": "platform.claude.com/docs — cross-checked exactly against github-copilot/claude-opus-5's costPerMTokUSD",
+      "lastVerified": "2026-08-31"
+    },
+    "anthropic/claude-haiku-4-5-20251001": {
+      "provider": "anthropic",
+      "id": "claude-haiku-4-5-20251001",
+      "contextLimit": 200000,
+      "contextLimitNote": "Standard default; see anthropic/claude-sonnet-5's contextLimitNote — same caveat applies.",
+      "maxOutput": 64000,
+      "maxOutputNote": "Not individually confirmed for Haiku 4.5 — assumed to share the same generation cap as Sonnet 5/Opus 5, unmeasured.",
+      "capabilities": { "tools": true, "reasoning": true },
+      "costPerMTokUSD": { "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25 },
+      "longContextTier": null,
+      "costOverride": null,
+      "measuredQuality": {},
+      "switchHint": "Claude Code's /model command selects this by the friendly alias 'haiku', not this literal id. Model switching for Claude Code is out of scope for this skill (advice only) — actuation is opencode-only, see § Actuation.",
+      "pricingSource": "platform.claude.com/docs — no github-copilot mirror exists to cross-check against",
+      "lastVerified": "2026-08-31"
     }
   }
 }
