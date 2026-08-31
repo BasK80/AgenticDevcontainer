@@ -22,11 +22,13 @@
     "lastConfirmed": "2026-08-24"
   },
   "creditAllowance": {
-    "seatType": "Enterprise",
-    "monthlyCredits": 15000,
+    "monthlyCredits": null,
+    "remaining": null,
+    "percentRemaining": null,
+    "resetDate": null,
     "creditValueUSD": 0.01,
-    "source": "asked",
-    "lastConfirmed": "2026-08-25",
-    "note": "CORRECTED during live verification: the single-seat published Enterprise figure (3900) is wrong for this account — credits are pooled across multiple licenses in the enterprise (a 'shared enterprise pool'), and the real pooled monthly allowance is 15000, stated directly by the user. The naive 'seat type -> monthlyCredits' self-serve this schema originally specified doesn't hold whenever seats are pooled — asking seat type alone isn't enough; the actual pooled figure must be asked (or otherwise obtained) directly. Whether the *remaining balance* could be read programmatically instead of asked each time was tested live with a real github-copilot OAuth token (scope read:user) against the GHE host's GET /users/{username}/settings/billing/ai_credit/usage (and the /usage and /usage/summary variants) — all three returned a clean 404, distinct in character from the /user/orgs call's explicit 403 'need read:org scope' response, suggesting the route isn't implemented on that GHE Data Residency tenant at all rather than a scope problem. No programmatic remaining-balance check is available. Remaining balance is NOT cached in this file since it drains continuously — only the allowance is. SEED VALUE: re-confirm against your own seat and enterprise before trusting it."
+    "source": null,
+    "lastConfirmed": null,
+    "note": "Intentionally empty in the seed. The skill fills this on first use by fetching GET /copilot_internal/user -> quota_snapshots.premium_interactions (see REFERENCE.md § Credit allowance and balance). Do not seed a figure: monthly entitlement is account-specific, and the published per-seat numbers (1900 Business / 3900 Enterprise) are starting points an organisation may raise per user - one verified account reported plan 'business' against an actual entitlement of 15000. If the fetch fails, the skill expresses cost in money alone rather than guessing an allowance."
   }
 }

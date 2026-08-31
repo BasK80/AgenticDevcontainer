@@ -116,7 +116,7 @@
         "offline": {
           "modelKey": "ollama/qwen3-coder:30b-a3b-q4_K_M",
           "provenance": "assumed",
-          "note": "The dedicated slow (CPU/RAM-bound) tier: 262144 advertised context clears large-input review where the fast tier's ~30.7k ceiling can't. Capability claim only, not quality \u2014 no eval run. Accept-minutes latency, not interactive; say so when recommending it."
+          "note": "The dedicated slow (CPU/RAM-bound) tier: 262144 advertised context clears large-input review where the fast tier's ~30.7k ceiling can't. Capability claim only, not quality — no eval run. Accept-minutes latency, not interactive; say so when recommending it."
         }
       },
       "consent": {
@@ -146,15 +146,15 @@
         "offline": {
           "modelKey": "ollama/qwen3-coder:30b-a3b-q4_K_M",
           "provenance": "assumed",
-          "note": "Switched from the 7B fast-tier model to the dedicated CPU/RAM slow tier \u2014 'coder' in the name and MoE decode speed make it the better offline fit for many-tool-call agentic work than a fast but much smaller dense model, but this is still a capability claim, not a measured quality one. Accept-minutes latency; say so when recommending it."
+          "note": "Switched from the 7B fast-tier model to the dedicated CPU/RAM slow tier — 'coder' in the name and MoE decode speed make it the better offline fit for many-tool-call agentic work than a fast but much smaller dense model, but this is still a capability claim, not a measured quality one. Accept-minutes latency; say so when recommending it."
         }
       },
       "consent": {
-        "expensiveModelApproved": true,
-        "approvedAtCostLevel": 150,
-        "approvedAtCostLevelNote": "~150 credits (~1.0% of the corrected 15,000-credit pooled monthly allowance \u2014 see hardware.json.creditAllowance note), for a ~150k-input/30k-output claude-opus-5 estimate. Asked and approved by the user on 2026-08-25 during live verification of this skill. A later ~500-credit estimate (3.3x this level) correctly re-triggered the consent ask, confirming the re-ask-on-large-jump mechanism; re-ask again if a future estimate greatly exceeds this level."
+        "expensiveModelApproved": false,
+        "approvedAtCostLevel": null
       },
       "failureCounters": {}
     }
-  }
+  },
+  "_seedNote": "Consent records ship empty: the gate must ask each user for themselves. During the original verification a ~150-credit (~$1.50) claude-opus-5 estimate was approved for code-agentic, and a later ~500-credit estimate (3.3x) correctly re-triggered the ask - kept here as a reference point for what the mechanism does, not as a pre-approval."
 }

@@ -112,6 +112,26 @@ over-provisioning costs credits the user can see.
 
 ## Consent gate
 
+> **Superseded in part, 2026-08-31** (ticket 019). Three claims in this
+> section no longer hold:
+>
+> - **The percentage framing is dropped.** "~13% of your month" rested on the
+>   allowance being both personal and known. It is personal, but it was being
+>   *guessed* from a seat-type question that returned a figure 7.9x too low.
+>   The gate now expresses money first, credits second — "~$1.50 (=150
+>   credits)" — and fires above ~$1.00 or at ~3x an already-approved level.
+> - **"Inform-only, never blocks" is now conditional.** It remains the rule,
+>   but once consumption runs ahead of the calendar the skill starts actively
+>   proposing cheaper models, because credits are treated as stopping hard.
+> - **"The remaining balance is a different matter" is obsolete.** It is
+>   fetchable after all, from `GET /copilot_internal/user`. The documented
+>   billing routes 404; that undocumented one returns entitlement, remaining
+>   and reset date without any special role.
+>
+> The rest of this section — per-type memory, and the re-ask-on-large-jump
+> hole it identifies — survives unchanged and is still the design in force.
+
+
 The charting-time gate protected against slow *local* models. Local is now
 offline-only, so offline is a **branch, not a decision**, and that gate has no
 job. The replacement protects **credits**.

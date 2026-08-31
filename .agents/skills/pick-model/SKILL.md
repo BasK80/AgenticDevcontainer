@@ -64,11 +64,11 @@ This file is the checklist.
 ## Checklist
 
 1. **Load state.** Read `hardware.json`, `models.json`, `preferences.json`
-   from the data directory (REFERENCE.md § Configuration). If
-   `hardware.json.creditAllowance.seatType` is `null` and this is the first
-   time a consent-gate decision needs it, ask once ("Business or
-   Enterprise?"), cache it, move on — see REFERENCE.md § Seat type
-   self-service.
+   from the data directory (REFERENCE.md § Configuration). If the cached
+   `creditAllowance` is absent or from an earlier session, fetch the live
+   allowance and remaining balance once and cache it — never ask for a seat
+   type, and degrade silently to money-only if the fetch fails. See
+   REFERENCE.md § Credit allowance and balance.
 2. **Match the task to a type.** Exemplars first, cheap and textual; only run
    full axis inference when nothing matches well, then mint a new type with
    its own exemplars. See REFERENCE.md § Matching a task.
@@ -85,9 +85,14 @@ This file is the checklist.
    local model that fits, per `models.json`'s ollama tier data — or say
    plainly that this task type has no offline coverage, per its
    `offline.modelKey: null` note, if that's what the data says.
-6. **Run the consent gate** if the estimate is expensive relative to the
-   cached monthly allowance and this type hasn't already consented at this
-   level. Inform, never block. See REFERENCE.md § Consent gate.
+6. **Run the consent gate** if the estimated cost exceeds ~$1.00, or reaches
+   roughly 3× the level this type already consented to. Express it as money
+   first, credits second, with the remaining balance alongside. Inform, never
+   block. See REFERENCE.md § Consent gate.
+   **Then check pace:** if the fraction of allowance remaining is below the
+   fraction of the period remaining, warn and start proposing cheaper models
+   — see REFERENCE.md § Pace warning. Skip both the balance and the pace
+   check for non-Copilot providers.
 7. **Explain the choice** — the reasoning is the product, written so the user
    can overrule it, not an oracle's verdict.
 8. **State provenance** (`assumed` vs `measured`) for the type's default and
