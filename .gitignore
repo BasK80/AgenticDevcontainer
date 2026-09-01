@@ -5,3 +5,7 @@ node_modules/
 
 # Personal, per-checkout Claude Code permission overrides (any directory)
 **/.claude/settings.local.json
+
+# Model-picker skill state (machine-specific hardware/model/preference cache).
+# Seed it from .agents/skills/pick-model/seed/ on first run.
+.model-picker/

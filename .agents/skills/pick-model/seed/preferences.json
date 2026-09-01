@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "network": {
+    "cloud": {
+      "reachable": true,
+      "signal": "rc=0 http_code=403 (reached copilot-api.info-support.ghe.com directly; 403 is the real API responding to an unauthenticated root request, not a firewall block)",
+      "lastProbed": "2026-08-25T09:20:33Z"
+    }
+  },
+  "taskTypes": {
+    "quick": {
+      "axes": {
+        "reasoningDepth": "trivial",
+        "agenticDepth": "none",
+        "stakes": "low",
+        "inputSize": "small",
+        "outputSize": "small"
+      },
+      "exemplars": [
+        "write a commit message for these changes",
+        "rename this variable across the file",
+        "summarize what this function does"
+      ],
+      "defaults": {
+        "online": {
+          "modelKey": "github-copilot/gpt-5.6-luna",
+          "provenance": "assumed"
+        },
+        "offline": {
+          "modelKey": "ollama/qwen2.5:7b",
+          "provenance": "assumed"
+        }
+      },
+      "consent": {
+        "expensiveModelApproved": false,
+        "approvedAtCostLevel": null
+      },
+      "failureCounters": {}
+    },
+    "doc-edit": {
+      "axes": {
+        "reasoningDepth": "moderate",
+        "agenticDepth": "none",
+        "stakes": "low",
+        "inputSize": "small-medium",
+        "outputSize": "small"
+      },
+      "exemplars": [
+        "tighten the wording in this section of the architecture doc",
+        "fix grammar and clarity in this README paragraph",
+        "make this functional spec more concise"
+      ],
+      "defaults": {
+        "online": {
+          "modelKey": "github-copilot/gpt-5.6-luna",
+          "provenance": "assumed"
+        },
+        "offline": {
+          "modelKey": "ollama/qwen2.5:7b",
+          "provenance": "assumed"
+        }
+      },
+      "consent": {
+        "expensiveModelApproved": false,
+        "approvedAtCostLevel": null
+      },
+      "failureCounters": {}
+    },
+    "doc-author": {
+      "axes": {
+        "reasoningDepth": "hard",
+        "agenticDepth": "none",
+        "stakes": "medium",
+        "inputSize": "medium",
+        "outputSize": "large"
+      },
+      "exemplars": [
+        "draft a new architectural decision record for this change",
+        "write a functional spec for this feature from scratch",
+        "author a technical design doc covering these requirements"
+      ],
+      "defaults": {
+        "online": {
+          "modelKey": "github-copilot/claude-sonnet-5",
+          "provenance": "assumed"
+        },
+        "offline": {
+          "modelKey": "ollama/qwen2.5:7b",
+          "provenance": "assumed"
+        }
+      },
+      "consent": {
+        "expensiveModelApproved": false,
+        "approvedAtCostLevel": null
+      },
+      "failureCounters": {}
+    },
+    "doc-review": {
+      "axes": {
+        "reasoningDepth": "hard",
+        "agenticDepth": "few",
+        "stakes": "medium",
+        "inputSize": "large",
+        "outputSize": "small"
+      },
+      "exemplars": [
+        "check these five docs for consistency with the current architecture",
+        "review the whole docs/ tree for terminology drift",
+        "audit this spec against the actual implementation across the repo"
+      ],
+      "defaults": {
+        "online": {
+          "modelKey": "github-copilot/claude-sonnet-5",
+          "provenance": "assumed"
+        },
+        "offline": {
+          "modelKey": "ollama/qwen3-coder:30b-a3b-q4_K_M",
+          "provenance": "assumed",
+          "note": "The dedicated slow (CPU/RAM-bound) tier: 262144 advertised context clears large-input review where the fast tier's ~30.7k ceiling can't. Capability claim only, not quality — no eval run. Accept-minutes latency, not interactive; say so when recommending it."
+        }
+      },
+      "consent": {
+        "expensiveModelApproved": false,
+        "approvedAtCostLevel": null
+      },
+      "failureCounters": {}
+    },
+    "code-agentic": {
+      "axes": {
+        "reasoningDepth": "hard",
+        "agenticDepth": "many",
+        "stakes": "high",
+        "inputSize": "large",
+        "outputSize": "large"
+      },
+      "exemplars": [
+        "refactor this module to use the new interface",
+        "fix this bug across the three files that touch it",
+        "implement this feature end to end with tests"
+      ],
+      "defaults": {
+        "online": {
+          "modelKey": "github-copilot/claude-opus-5",
+          "provenance": "assumed"
+        },
+        "offline": {
+          "modelKey": "ollama/qwen3-coder:30b-a3b-q4_K_M",
+          "provenance": "assumed",
+          "note": "Switched from the 7B fast-tier model to the dedicated CPU/RAM slow tier — 'coder' in the name and MoE decode speed make it the better offline fit for many-tool-call agentic work than a fast but much smaller dense model, but this is still a capability claim, not a measured quality one. Accept-minutes latency; say so when recommending it."
+        }
+      },
+      "consent": {
+        "expensiveModelApproved": false,
+        "approvedAtCostLevel": null
+      },
+      "failureCounters": {}
+    }
+  },
+  "_seedNote": "Consent records ship empty: the gate must ask each user for themselves. During the original verification a ~150-credit (~$1.50) claude-opus-5 estimate was approved for code-agentic, and a later ~500-credit estimate (3.3x) correctly re-triggered the ask - kept here as a reference point for what the mechanism does, not as a pre-approval."
+}

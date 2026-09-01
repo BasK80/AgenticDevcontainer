@@ -5,6 +5,8 @@ services:
     build: ./firewall
     container_name: agentic-${LOCAL_WORKSPACE_FOLDER_BASENAME}-firewall
     hostname: firewall
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       internal:
         ipv4_address: ${FIREWALL_IP:-172.28.0.2}

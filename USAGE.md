@@ -173,7 +173,17 @@ The skill `name` in the frontmatter must be lowercase-kebab-case and match its d
 
 > User-level skills also work and **persist across rebuilds**: `~/.claude/skills/` (claude + opencode) or `~/.copilot/skills/` (copilot). Project-level skills in `/workspace/.claude/skills/` are versioned with the repo, which is why the bundled ones below live there.
 
-**Bundled skills.** This repo ships a set of general-purpose productivity skills under `/workspace/.claude/skills/`. Four (`caveman`, `grill-me`, `handoff`, `write-a-skill`) are from [mattpocock/skills](https://github.com/mattpocock/skills); `security-test` is project-specific:
+**A second, symlinked layout.** Some bundled skills instead keep their canonical copy in `/workspace/.agents/skills/<name>/` and are exposed through symlinks:
+
+```
+.agents/skills/<name>/SKILL.md      <- the real file
+.claude/skills/<name>       -> ../../.agents/skills/<name>
+.opencode/skill/<name>      -> ../../.agents/skills/<name>
+```
+
+`copilot` reads `.agents/skills/` natively, so it needs no link. This form exists for skills that ship supporting files (a `REFERENCE.md`, research assets, seed data) and want one unambiguous home rather than a copy per agent. Either layout works — use the simple `.claude/skills/<name>/` one unless you have that need.
+
+**Bundled skills.** This repo ships a set of general-purpose productivity skills. Four (`caveman`, `grill-me`, `handoff`, `write-a-skill`) are from [mattpocock/skills](https://github.com/mattpocock/skills); the rest are project-specific:
 
 | Skill | What it does |
 |-------|--------------|
@@ -182,6 +192,10 @@ The skill `name` in the frontmatter must be lowercase-kebab-case and match its d
 | `handoff` | Compacts the conversation into a handoff doc so another agent can continue. |
 | `write-a-skill` | Scaffolds new skills with proper structure and progressive disclosure. |
 | `security-test` | Runs an adversarial pentest of the dev-container security perimeter and reports HELD / BYPASS per probe. |
+| `pick-model` | Recommends which model to fit the task — cloud by default, local only when the network is genuinely unreachable — and shows its reasoning. In `opencode` it also switches the session model; elsewhere it prints the command. |
+| `ollama-curate` | Reports which local ollama models are installed, which run fully on the GPU vs. spill to CPU RAM on your hardware, and what to pull or drop. |
+
+> `pick-model` and `ollama-curate` use the symlinked `.agents/skills/` layout above and talk to **ollama on your host** — see [Local ollama on the host](docs/providers.md#local-ollama-on-the-host). `pick-model`'s actuation plugin (`.opencode/plugin/pick-model.ts`) is opencode-only and needs a one-time `npm install` in `.opencode/`. Both read a gitignored `/workspace/.model-picker/` data directory; seed it on first run with `cp -n .agents/skills/pick-model/seed/*.json .model-picker/` and treat every seeded fact as stale until re-confirmed.
 
 **Where to find more skills:**
 

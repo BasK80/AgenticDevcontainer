@@ -1,0 +1,12 @@
+# ollama — a local ollama instance running on the host (agentic framework: any)
+#
+# Reaches the host over plain HTTP on a non-standard port (default 11434) via
+# the docker host-gateway. Two things make this work and both live in tracked
+# config, not in this list:
+#   - docker-compose.yml maps host.docker.internal -> host-gateway on the
+#     firewall container;
+#   - firewall/dnsmasq.conf omits `no-hosts`, so dnsmasq serves that
+#     /etc/hosts entry to the development container's resolver.
+# Squid still brokers the connection, so this list is what actually permits it.
+# Off by default — opt in with `fw feature on ollama`.
+host.docker.internal

@@ -96,20 +96,24 @@ _claude_write_settings() {
 
 _opencode_write_config() {
     # $1 = "anthropic-key" | "azure" | "clear"
-    # Merges only the "provider" key into ~/.config/opencode/opencode.json so
-    # that user settings (model, theme, etc.) survive provider switches.
+    # Merges/clears only the "anthropic" and "azure" keys under .provider in
+    # ~/.config/opencode/opencode.json, leaving any other configured provider
+    # (e.g. a hand-added "ollama" entry — see wayfinder ticket 009) untouched.
+    # Previously this replaced the whole .provider object, which silently
+    # wiped out any such entry on every use-* call and on every new shell
+    # (_llm_apply_persisted re-applies the persisted choice).
     mkdir -p "$(dirname "$_OPENCODE_CONFIG")"
 
-    local new_provider
+    local patch
     case "$1" in
     anthropic-key)
         if [[ -n "${ANTHROPIC_BASE_URL:-}" ]]; then
-            new_provider=$(jq -n \
+            patch=$(jq -n \
                 --arg key  "${ANTHROPIC_API_KEY:-}" \
                 --arg base "${ANTHROPIC_BASE_URL}" \
                 '{"anthropic":{"options":{"apiKey":$key,"baseURL":$base}}}')
         else
-            new_provider=$(jq -n \
+            patch=$(jq -n \
                 --arg key "${ANTHROPIC_API_KEY:-}" \
                 '{"anthropic":{"options":{"apiKey":$key}}}')
         fi
@@ -117,22 +121,23 @@ _opencode_write_config() {
     azure)
         # Resource name only — the API key must be stored once via '/connect'
         # inside opencode. Deployment name must match the model name.
-        new_provider=$(jq -n \
+        patch=$(jq -n \
             --arg res "${ANTHROPIC_FOUNDRY_RESOURCE}" \
             '{"azure":{"options":{"resourceName":$res}}}')
         ;;
     *)
-        new_provider='{}'
+        patch='{}'
         ;;
     esac
 
     if [[ -f "$_OPENCODE_CONFIG" ]]; then
-        jq --argjson p "$new_provider" '.provider = $p' "$_OPENCODE_CONFIG" \
-            > "${_OPENCODE_CONFIG}.tmp" \
+        jq --argjson p "$patch" \
+            '.provider = ((.provider // {}) | del(.anthropic, .azure) + $p)' \
+            "$_OPENCODE_CONFIG" > "${_OPENCODE_CONFIG}.tmp" \
             && mv "${_OPENCODE_CONFIG}.tmp" "$_OPENCODE_CONFIG"
     else
         jq -n \
-            --argjson p "$new_provider" \
+            --argjson p "$patch" \
             '{"$schema":"https://opencode.ai/config.json","provider":$p}' \
             > "$_OPENCODE_CONFIG"
     fi

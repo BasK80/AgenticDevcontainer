@@ -40,8 +40,8 @@ Squid image: `squid.conf` (ACL + the firewall-aware `deny_info` error page), `fe
 ### `.devcontainer/control/`
 Out-of-band management plane, unreachable from `development`. Holds the policy volume, the web dashboard (`dashboard.py`), and the management scripts it calls (`allow.sh`, `deny.sh`, `feature.sh`, `list_allows.sh`, `show_blocks.sh`, `tail_firewall.sh`). These scripts write to the same shared `policy` volume as the firewall container's `fw` script, so the dashboard and the CLI are always in sync. User-defined feature-sets created via the dashboard or CLI are stored at `/policy/features.d/` on the `policy` volume and persist across container restarts.
 
-### `.claude/skills/`
-Six bundled Agent Skills shared by all three agents — see [Bundled skills](operations.md#bundled-skills).
+### `.claude/skills/`, `.agents/skills/` & `.opencode/`
+The bundled Agent Skills shared by all three agents — see [Bundled skills](operations.md#bundled-skills). Most are plain directories under `.claude/skills/`. `pick-model` and `ollama-curate` instead keep their canonical copy (plus `REFERENCE.md`, research assets and seed data) in `.agents/skills/<name>/`, symlinked from `.claude/skills/<name>` and `.opencode/skill/<name>`; `copilot` reads `.agents/skills/` natively. `.opencode/plugin/pick-model.ts` is `pick-model`'s opencode-only actuation tool (`pickmodel_switch`), with its one dependency declared in `.opencode/package.json`.
 
 ### `CLAUDE.md` & `AGENTS.md`
 Project-level agent guides carrying the **firewall-awareness note** (the network topology and how to request allowlist additions), read automatically by Claude Code (`CLAUDE.md`) and opencode (`AGENTS.md`). Portable: copy into any project so its agents understand the default-deny network instead of misreading a blocked request as a connectivity failure.
